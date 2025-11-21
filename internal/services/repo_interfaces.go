@@ -11,5 +11,6 @@ type (
 	// TeamRepository defines the abstraction of the team's ops interaction.
 	TeamRepository interface {
 		GetTeam(name string) (entities.Team, bool, error)
+		CreateTeam(team entities.Team) error
 	}
 )

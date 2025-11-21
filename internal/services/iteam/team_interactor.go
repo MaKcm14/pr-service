@@ -34,3 +34,16 @@ func (t TeamUseCase) GetTeam(name string) (entities.Team, bool, error) {
 
 	return dto, isExists, nil
 }
+
+// CreateTeam defines the logic of creating the team in the repository.
+func (t TeamUseCase) CreateTeam(team entities.Team) error {
+	const op = "iteam.create-team"
+
+	if err := t.repo.CreateTeam(team); err != nil {
+		retErr := fmt.Errorf("error of the %s: %w", op, err)
+		t.log.Warn(retErr.Error())
+		return retErr
+	}
+
+	return nil
+}

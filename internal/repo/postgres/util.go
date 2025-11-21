@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/MaKcm14/pr-service/internal/repo"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -20,14 +21,14 @@ func newPostgresConfig(log *slog.Logger, socket string) (*postgresConfig, error)
 
 	conn, err := pgxpool.New(context.Background(), socket)
 	if err != nil {
-		retErr := fmt.Errorf("error of the %s: %w: %w", op, ErrConnToRepository, err)
+		retErr := fmt.Errorf("error of the %s: %w: %w", op, repo.ErrConnToRepository, err)
 		log.Error(retErr.Error())
 		return nil, retErr
 	}
 
 	ctx, _ := context.WithTimeout(context.Background(), time.Second*5)
 	if err := conn.Ping(ctx); err != nil {
-		retErr := fmt.Errorf("error of the %s: %w: %w", op, ErrConnToRepository, err)
+		retErr := fmt.Errorf("error of the %s: %w: %w", op, repo.ErrConnToRepository, err)
 		log.Error(retErr.Error())
 		return nil, retErr
 	}

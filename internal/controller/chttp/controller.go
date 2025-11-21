@@ -1,9 +1,12 @@
 package chttp
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
+	"github.com/MaKcm14/pr-service/internal/entities"
+	"github.com/MaKcm14/pr-service/internal/repo"
 	"github.com/MaKcm14/pr-service/internal/services"
 	"github.com/labstack/echo/v4"
 )
@@ -44,9 +47,11 @@ func (h *HttpController) handlerTeamGet(ctx echo.Context) error {
 
 	res, err := validateTeamName(ctx)
 	if err != nil {
-		return ctx.JSON(http.StatusNotFound, ErrResponse{
-			ErrRespQueryEmptyParam.Error(),
-		})
+		return ctx.JSON(http.StatusBadRequest, ErrResponse{
+			ErrData{
+				Code:    NoCandidate,
+				Message: ErrRespQueryEmptyParam.Error(),
+			}})
 	}
 
 	team, isExists, err := h.useCase.GetTeam(res.(string))
@@ -55,8 +60,10 @@ func (h *HttpController) handlerTeamGet(ctx echo.Context) error {
 		return ctx.JSON(http.StatusOK, team)
 	} else if !isExists {
 		return ctx.JSON(http.StatusNotFound, ErrResponse{
-			ErrRespQueryUnexistingModel.Error(),
-		})
+			ErrData{
+				Code:    NotFound,
+				Message: ErrRespQueryNotFound.Error(),
+			}})
 	}
 
 	return nil
@@ -67,8 +74,28 @@ func (h *HttpController) handlerUsersGetReview(ctx echo.Context) error {
 	return nil
 }
 
+// handlerTeamAdd defines the logic of handling the request for adding the team.
 func (h *HttpController) handlerTeamAdd(ctx echo.Context) error {
 	const op = "chttp.team-add"
+
+	team := entities.NewTeam()
+	if err := ctx.Bind(&team); err != nil {
+		return ctx.JSON(http.StatusBadRequest, ErrResponse{
+			ErrData{
+				Code:    NoCandidate,
+				Message: ErrRespQueryWrongRequestData.Error(),
+			}})
+	}
+
+	if err := h.useCase.CreateTeam(team); err != nil {
+		if errors.Is(err, repo.ErrCreateMultipleUniqueModels) {
+			return ctx.JSON(http.StatusBadRequest, ErrResponse{
+				ErrData{
+					Code:    TeamExists,
+					Message: ErrRespQueryAlreadyExists.Error(),
+				}})
+		}
+	}
 
 	return nil
 }

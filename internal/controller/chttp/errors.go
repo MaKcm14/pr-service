@@ -8,6 +8,8 @@ var (
 )
 
 var (
-	ErrRespQueryEmptyParam      = errors.New("the requested params couldn't be empty")
-	ErrRespQueryUnexistingModel = errors.New("the requested model doesn't exist")
+	ErrRespQueryEmptyParam       = errors.New("the requested params couldn't be empty")
+	ErrRespQueryNotFound         = errors.New("the requested model doesn't exist")
+	ErrRespQueryWrongRequestData = errors.New("error of the request's data: current format is not available")
+	ErrRespQueryAlreadyExists    = errors.New("the model already exists")
 )

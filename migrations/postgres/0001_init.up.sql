@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS teams (
 
 -- Creating the relation for the models 'User'.
 CREATE TABLE IF NOT EXISTS users (
-    id SERIAL PRIMARY KEY,
+    id INT PRIMARY KEY,
     username TEXT NOT NULL,
     is_active BOOLEAN NOT NULL,
     team_id INT NOT NULL REFERENCES teams(id) ON UPDATE CASCADE

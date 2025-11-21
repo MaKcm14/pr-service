@@ -11,5 +11,6 @@ type (
 	// TeamInteractor defines the interface of the teams's use-cases abstraction.
 	TeamInteractor interface {
 		GetTeam(name string) (entities.Team, bool, error)
+		CreateTeam(team entities.Team) error
 	}
 )
