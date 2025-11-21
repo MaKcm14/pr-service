@@ -1,0 +1,14 @@
+version: 3
+
+services:
+    migrate:
+      image: 'migrate/migrate'
+
+      container_name: migrate
+
+      command: ["-path", "/migrations", "-database", "postgresql://postgres:pr_service@localhost:5432/pr_service_db?sslmode=disable", "up", "0001"]
+
+      network_mode: container:postgres
+
+      volumes:
+        - ./migrations/postgres:/migrations
