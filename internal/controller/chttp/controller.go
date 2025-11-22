@@ -75,8 +75,10 @@ func (h *HttpController) handlerTeamGet(eCtx echo.Context) error {
 	return eCtx.JSON(http.StatusOK, dto)
 }
 
+// handlerUsersGetReview defines the logic of handling the request for getting the reviewer's PRs.
 func (h *HttpController) handlerUsersGetReview(ctx echo.Context) error {
 	const op = "chttp.users-get-review"
+
 	return nil
 }
 
@@ -155,7 +157,7 @@ func (h *HttpController) handlerUserSetIsActive(eCtx echo.Context) error {
 func (h *HttpController) handlerPullRequestCreate(eCtx echo.Context) error {
 	const op = "chttp.pull-request-create"
 
-	pullReq := dto.PullRequestDTO{}
+	pullReq := dto.NewPullRequestDTO()
 	if err := eCtx.Bind(&pullReq); err != nil {
 		return eCtx.JSON(http.StatusBadRequest, ErrResponse{
 			ErrData{
@@ -192,10 +194,41 @@ func (h *HttpController) handlerPullRequestCreate(eCtx echo.Context) error {
 }
 
 // handlerPullRequestMerge defines the logic of handling the request for merge the requested PR.
-func (h *HttpController) handlerPullRequestMerge(ctx echo.Context) error {
+func (h *HttpController) handlerPullRequestMerge(eCtx echo.Context) error {
 	const op = "chttp.pull-request-merge"
 
-	return nil
+	pullReq := dto.NewPullRequestDTO()
+	if err := eCtx.Bind(&pullReq); err != nil {
+		return eCtx.JSON(http.StatusBadRequest, ErrResponse{
+			ErrData{
+				Code:    RequestDataErr,
+				Message: ErrRespQueryWrongRequestData.Error(),
+			},
+		})
+	}
+
+	ctx, _ := context.WithTimeout(eCtx.Request().Context(), time.Second*3)
+	res, err := h.useCase.SetPullRequestStatus(ctx, entities.Merged, pullReq)
+	if err != nil {
+		if errors.Is(err, services.ErrEntityNotFound) {
+			return eCtx.JSON(http.StatusNotFound, ErrResponse{
+				ErrData{
+					Code:    NotFound,
+					Message: ErrRespQueryNotFound.Error(),
+				},
+			})
+		}
+		h.log.Warn(fmt.Sprintf("error of the %s: %s", op, err))
+
+		return eCtx.JSON(http.StatusInternalServerError, ErrResponse{
+			ErrData{
+				Code:    ServerErr,
+				Message: ErrRespQueryServerError.Error(),
+			},
+		})
+	}
+
+	return eCtx.JSON(http.StatusOK, res)
 }
 
 func (h *HttpController) handlerPullRequestReassign(ctx echo.Context) error {

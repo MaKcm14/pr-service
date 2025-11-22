@@ -29,5 +29,6 @@ type (
 	// PullRequestInteractor defines the interface of the pull-requests' user-cases abstraction.
 	PullRequestInteractor interface {
 		CreatePullRequest(ctx context.Context, pullReq dto.PullRequestDTO) error
+		SetPullRequestStatus(ctx context.Context, status entities.PullRequestStatus, pullReq dto.PullRequestDTO) (dto.PullRequestDTO, error)
 	}
 )

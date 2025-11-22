@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/MaKcm14/pr-service/internal/entities"
 	"github.com/MaKcm14/pr-service/internal/entities/dto"
 	"github.com/MaKcm14/pr-service/internal/repo"
 	"github.com/MaKcm14/pr-service/internal/services"
@@ -42,4 +43,28 @@ func (p PullRequestInteractor) CreatePullRequest(ctx context.Context, pullReques
 	}
 
 	return nil
+}
+
+// SetPullRequestStatus defines the logic of changing the status for the pull-request object.
+func (p PullRequestInteractor) SetPullRequestStatus(
+	ctx context.Context,
+	status entities.PullRequestStatus,
+	pullReq dto.PullRequestDTO,
+) (dto.PullRequestDTO, error) {
+	const op = "ipreq.set-pull-request-status"
+
+	res, err := p.repo.SetPullRequestStatus(ctx, status, pullReq)
+	if err != nil {
+		retErr := fmt.Errorf("error of the %s: %w: %s", op, services.ErrRepositoryInteraction, err)
+
+		if errors.Is(err, repo.ErrModelNotFound) {
+			return dto.PullRequestDTO{},
+				fmt.Errorf("error of the %s: %w: %s", op, services.ErrEntityNotFound, err)
+		}
+		p.log.Warn(retErr.Error())
+
+		return dto.PullRequestDTO{}, retErr
+	}
+
+	return res, nil
 }
