@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/MaKcm14/pr-service/internal/entities"
 	"github.com/MaKcm14/pr-service/internal/repo"
@@ -16,10 +15,10 @@ type teamsRepo struct {
 }
 
 // GetTeam defines the logic of getting the team object for the current name.
-func (t teamsRepo) GetTeam(name string) (entities.Team, bool, error) {
+func (t teamsRepo) GetTeam(ctx context.Context, name string) (entities.Team, bool, error) {
 	const op = "postgres.get-team"
 
-	team, ok, err := t.isTeamExists(name)
+	team, ok, err := t.isTeamExists(ctx, name)
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w", op, err)
 		t.conf.log.Warn(retErr.Error())
@@ -28,7 +27,7 @@ func (t teamsRepo) GetTeam(name string) (entities.Team, bool, error) {
 		return entities.Team{}, false, nil
 	}
 
-	members, err := t.getTeamMembers(name)
+	members, err := t.getTeamMembers(ctx, name)
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w", op, err)
 		t.conf.log.Warn(retErr.Error())
@@ -40,10 +39,10 @@ func (t teamsRepo) GetTeam(name string) (entities.Team, bool, error) {
 }
 
 // CreateTeam defines the logic of creating a new team.
-func (t teamsRepo) CreateTeam(team entities.Team) error {
+func (t teamsRepo) CreateTeam(ctx context.Context, team entities.Team) error {
 	const op = "postgres.create-team"
 
-	team, ok, err := t.isTeamExists(team.Name)
+	team, ok, err := t.isTeamExists(ctx, team.Name)
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w", op, err)
 		t.conf.log.Warn(retErr.Error())
@@ -52,20 +51,22 @@ func (t teamsRepo) CreateTeam(team entities.Team) error {
 		return repo.ErrCreateMultipleUniqueModels
 	}
 
-	if err := t.createTeam(team); err != nil {
+	if err := t.createTeam(ctx, team); err != nil {
 		return err
 	}
 	return nil
 }
 
+const insertTeam = `
+	INSERT INTO teams (team_name)
+	VALUES ($1)
+`
+
 // createTeam defines the logic of creating the 'Team' model.
-func (t teamsRepo) createTeam(team entities.Team) error {
+func (t teamsRepo) createTeam(ctx context.Context, team entities.Team) error {
 	const op = "postgres.create-team"
 
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*3)
-	_, err := t.conf.conn.Exec(ctx,
-		`INSERT INTO teams (team_name)
-		VALUES ($1)`, team.Name)
+	_, err := t.conf.conn.Exec(ctx, insertTeam, team.Name)
 
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w: %w", op, repo.ErrQueryExec, err)
@@ -73,14 +74,18 @@ func (t teamsRepo) createTeam(team entities.Team) error {
 		return retErr
 	}
 
-	if err := t.addMembersList(team); err != nil {
+	if err := t.addMembersList(ctx, team); err != nil {
 		return err
 	}
 	return nil
 }
 
+const insertMembers = `
+INSERT INTO users (id, username, is_active)
+`
+
 // addMembersList defines the logic of adding the members list for the current team.
-func (t teamsRepo) addMembersList(team entities.Team) error {
+func (t teamsRepo) addMembersList(ctx context.Context, team entities.Team) error {
 	const op = "postgres.add-members-list"
 
 	if len(team.Members) == 0 {
@@ -88,12 +93,10 @@ func (t teamsRepo) addMembersList(team entities.Team) error {
 	}
 
 	query := bytes.Buffer{}
-	query.WriteString("INSERT INTO users (id, username, is_active)\n")
+	query.WriteString(insertMembers)
 	for _, user := range team.Members {
-		query.WriteString(fmt.Sprintf("(%d, %s, %d)\n", user.ID, user.Name, user.IsActive))
+		query.WriteString(fmt.Sprintf("(%d, %s, %v)\n", user.ID, user.Name, user.IsActive))
 	}
-
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*3)
 
 	_, err := t.conf.conn.Exec(ctx, query.String())
 	if err != nil {
@@ -105,17 +108,20 @@ func (t teamsRepo) addMembersList(team entities.Team) error {
 	return nil
 }
 
+const selectMembers = `
+	SELECT 
+		users.id, users.username, users.is_active
+	FROM users 
+		JOIN teams 
+		ON users.team_id=teams.id
+	WHERE name=$1
+`
+
 // getTeamMembers defines the logic of getting the members for the current team.
-func (t teamsRepo) getTeamMembers(name string) ([]entities.User, error) {
+func (t teamsRepo) getTeamMembers(ctx context.Context, name string) ([]entities.User, error) {
 	const op = "postgres.get-team-members"
 
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*3)
-	rows, err := t.conf.conn.Query(ctx,
-		`SELECT 
-			users.id, users.username, users.is_active
-		FROM users JOIN teams ON users.team_id=teams.id
-		WHERE name=$1`,
-		name)
+	rows, err := t.conf.conn.Query(ctx, selectMembers, name)
 
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w: %w", op, repo.ErrQueryExec, err)
@@ -139,15 +145,17 @@ func (t teamsRepo) getTeamMembers(name string) ([]entities.User, error) {
 	return res, nil
 }
 
+const selectTeam = `
+	SELECT id, team_name
+	FROM teams
+	WHERE name=$1
+`
+
 // isTeamExists defines the logic of checking whether the current team exists.
-func (t teamsRepo) isTeamExists(name string) (entities.Team, bool, error) {
+func (t teamsRepo) isTeamExists(ctx context.Context, name string) (entities.Team, bool, error) {
 	const op = "postgres.is-team-exists"
 
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*3)
-	rows, err := t.conf.conn.Query(ctx,
-		`SELECT id, team_name
-		FROM teams
-		WHERE name=$1`, name)
+	rows, err := t.conf.conn.Query(ctx, selectTeam, name)
 
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w: %w", op, repo.ErrQueryExec, err)
@@ -161,7 +169,9 @@ func (t teamsRepo) isTeamExists(name string) (entities.Team, bool, error) {
 	if rows.Next() {
 		rows.Scan(&res.Name)
 		return res, true, nil
-	} else if rows.Err() != nil {
+	}
+
+	if rows.Err() != nil {
 		retErr := fmt.Errorf("error of the %s: %w: %w", op, repo.ErrResProcessing, rows.Err())
 		t.conf.log.Warn(retErr.Error())
 		return entities.Team{}, false, retErr

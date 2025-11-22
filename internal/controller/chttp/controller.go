@@ -1,9 +1,11 @@
 package chttp
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/MaKcm14/pr-service/internal/entities"
 	"github.com/MaKcm14/pr-service/internal/repo"
@@ -42,24 +44,26 @@ func (h *HttpController) configEndpoints() {
 }
 
 // handlerTeamGet defines the logic of handling the request for getting the team.
-func (h *HttpController) handlerTeamGet(ctx echo.Context) error {
+func (h *HttpController) handlerTeamGet(eCtx echo.Context) error {
 	const op = "chttp.team-get"
 
-	res, err := validateTeamName(ctx)
+	res, err := validateTeamName(eCtx)
 	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, ErrResponse{
+		return eCtx.JSON(http.StatusBadRequest, ErrResponse{
 			ErrData{
 				Code:    NoCandidate,
 				Message: ErrRespQueryEmptyParam.Error(),
 			}})
 	}
 
-	team, isExists, err := h.useCase.GetTeam(res.(string))
+	ctx, _ := context.WithTimeout(eCtx.Request().Context(), time.Second*3)
+
+	dto, isExists, err := h.useCase.GetTeam(ctx, res.(string))
 	if err != nil {
 		h.log.Warn("error of the %s: %s", op, err)
-		return ctx.JSON(http.StatusOK, team)
+		return eCtx.JSON(http.StatusOK, dto)
 	} else if !isExists {
-		return ctx.JSON(http.StatusNotFound, ErrResponse{
+		return eCtx.JSON(http.StatusNotFound, ErrResponse{
 			ErrData{
 				Code:    NotFound,
 				Message: ErrRespQueryNotFound.Error(),
@@ -75,21 +79,24 @@ func (h *HttpController) handlerUsersGetReview(ctx echo.Context) error {
 }
 
 // handlerTeamAdd defines the logic of handling the request for adding the team.
-func (h *HttpController) handlerTeamAdd(ctx echo.Context) error {
+func (h *HttpController) handlerTeamAdd(eCtx echo.Context) error {
 	const op = "chttp.team-add"
 
 	team := entities.NewTeam()
-	if err := ctx.Bind(&team); err != nil {
-		return ctx.JSON(http.StatusBadRequest, ErrResponse{
+
+	if err := eCtx.Bind(&team); err != nil {
+		return eCtx.JSON(http.StatusBadRequest, ErrResponse{
 			ErrData{
 				Code:    NoCandidate,
 				Message: ErrRespQueryWrongRequestData.Error(),
 			}})
 	}
 
-	if err := h.useCase.CreateTeam(team); err != nil {
+	ctx, _ := context.WithTimeout(eCtx.Request().Context(), time.Second*3)
+
+	if err := h.useCase.CreateTeam(ctx, team); err != nil {
 		if errors.Is(err, repo.ErrCreateMultipleUniqueModels) {
-			return ctx.JSON(http.StatusBadRequest, ErrResponse{
+			return eCtx.JSON(http.StatusBadRequest, ErrResponse{
 				ErrData{
 					Code:    TeamExists,
 					Message: ErrRespQueryAlreadyExists.Error(),

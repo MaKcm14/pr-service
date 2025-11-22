@@ -8,4 +8,5 @@ type User struct {
 	ID       UserID `json:"user_id"`
 	Name     string `json:"username"`
 	IsActive bool   `json:"is_active"`
+	TeamName string `json:"team_name"`
 }
