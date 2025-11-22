@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 
@@ -9,173 +8,66 @@ import (
 	"github.com/MaKcm14/pr-service/internal/repo"
 )
 
-// teamsRepo defines the logic of interaction with the teams models.
-type teamsRepo struct {
+// usersRepo defines the logic of interaction with the users models
+type usersRepo struct {
 	conf *postgresConfig
 }
 
-// GetTeam defines the logic of getting the team object for the current name.
-func (t teamsRepo) GetTeam(ctx context.Context, name string) (entities.Team, bool, error) {
-	const op = "postgres.get-team"
-
-	team, ok, err := t.isTeamExists(ctx, name)
-	if err != nil {
-		retErr := fmt.Errorf("error of the %s: %w", op, err)
-		t.conf.log.Warn(retErr.Error())
-		return entities.Team{}, false, retErr
-	} else if !ok {
-		return entities.Team{}, false, nil
-	}
-
-	members, err := t.getTeamMembers(ctx, name)
-	if err != nil {
-		retErr := fmt.Errorf("error of the %s: %w", op, err)
-		t.conf.log.Warn(retErr.Error())
-		return entities.Team{}, false, retErr
-	}
-	team.Members = members
-
-	return team, true, nil
-}
-
-// CreateTeam defines the logic of creating a new team.
-func (t teamsRepo) CreateTeam(ctx context.Context, team entities.Team) error {
-	const op = "postgres.create-team"
-
-	team, ok, err := t.isTeamExists(ctx, team.Name)
-	if err != nil {
-		retErr := fmt.Errorf("error of the %s: %w", op, err)
-		t.conf.log.Warn(retErr.Error())
-		return retErr
-	} else if ok {
-		return repo.ErrCreateMultipleUniqueModels
-	}
-
-	if err := t.createTeam(ctx, team); err != nil {
-		return err
-	}
-	return nil
-}
-
-const insertTeam = `
-	INSERT INTO teams (team_name)
-	VALUES ($1)
+const updateUser = `
+	UPDATE users
+	SET is_active=$1
+	WHERE id=$2
 `
 
-// createTeam defines the logic of creating the 'Team' model.
-func (t teamsRepo) createTeam(ctx context.Context, team entities.Team) error {
-	const op = "postgres.create-team"
+func (u usersRepo) SetUserIsActive(ctx context.Context, dto entities.User) (entities.User, error) {
+	const op = "postgres.set-user-is-active"
 
-	_, err := t.conf.conn.Exec(ctx, insertTeam, team.Name)
-
+	tag, err := u.conf.conn.Exec(ctx, updateUser, true, dto.ID)
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w: %w", op, repo.ErrQueryExec, err)
-		t.conf.log.Warn(retErr.Error())
-		return retErr
+		u.conf.log.Warn(retErr.Error())
+		return entities.User{}, retErr
 	}
 
-	if err := t.addMembersList(ctx, team); err != nil {
-		return err
+	if tag.RowsAffected() == 0 {
+		return entities.User{}, repo.ErrModelNotFound
 	}
-	return nil
+
+	user, err := u.getUser(ctx, dto.ID)
+	if err != nil {
+		return entities.User{}, err
+	}
+
+	return user, nil
 }
 
-const insertMembers = `
-INSERT INTO users (id, username, is_active)
+const selectUserTeamName = `
+	SELECT users.id, users.username, users.is_active, teams.team_name
+	FROM users
+	JOIN teams ON users.team_id=teams.id
+	WHERE users.id=$1
 `
 
-// addMembersList defines the logic of adding the members list for the current team.
-func (t teamsRepo) addMembersList(ctx context.Context, team entities.Team) error {
-	const op = "postgres.add-members-list"
+func (u usersRepo) getUser(ctx context.Context, id entities.UserID) (entities.User, error) {
+	const op = "postgres.get-user-team-name"
 
-	if len(team.Members) == 0 {
-		return nil
-	}
-
-	query := bytes.Buffer{}
-	query.WriteString(insertMembers)
-	for _, user := range team.Members {
-		query.WriteString(fmt.Sprintf("(%d, %s, %v)\n", user.ID, user.Name, user.IsActive))
-	}
-
-	_, err := t.conf.conn.Exec(ctx, query.String())
+	rows, err := u.conf.conn.Query(ctx, selectUserTeamName, id)
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w: %s", op, repo.ErrQueryExec, err)
-		t.conf.log.Warn(retErr.Error())
-		return retErr
-	}
-
-	return nil
-}
-
-const selectMembers = `
-	SELECT 
-		users.id, users.username, users.is_active
-	FROM users 
-		JOIN teams 
-		ON users.team_id=teams.id
-	WHERE name=$1
-`
-
-// getTeamMembers defines the logic of getting the members for the current team.
-func (t teamsRepo) getTeamMembers(ctx context.Context, name string) ([]entities.User, error) {
-	const op = "postgres.get-team-members"
-
-	rows, err := t.conf.conn.Query(ctx, selectMembers, name)
-
-	if err != nil {
-		retErr := fmt.Errorf("error of the %s: %w: %w", op, repo.ErrQueryExec, err)
-		t.conf.log.Warn(retErr.Error())
-		return nil, retErr
+		u.conf.log.Warn(retErr.Error())
+		return entities.User{}, retErr
 	}
 	defer rows.Close()
 
-	res := make([]entities.User, 250)
-	for rows.Next() {
-		user := entities.User{}
-		rows.Scan(&user.ID, &user.Name, &user.IsActive)
-		res = append(res, user)
-	}
-
-	if rows.Err() != nil {
-		retErr := fmt.Errorf("error of the %s: %w: %w", op, repo.ErrResProcessing, err)
-		t.conf.log.Warn(retErr.Error())
-		return nil, retErr
-	}
-	return res, nil
-}
-
-const selectTeam = `
-	SELECT id, team_name
-	FROM teams
-	WHERE name=$1
-`
-
-// isTeamExists defines the logic of checking whether the current team exists.
-func (t teamsRepo) isTeamExists(ctx context.Context, name string) (entities.Team, bool, error) {
-	const op = "postgres.is-team-exists"
-
-	rows, err := t.conf.conn.Query(ctx, selectTeam, name)
-
-	if err != nil {
-		retErr := fmt.Errorf("error of the %s: %w: %w", op, repo.ErrQueryExec, err)
-		t.conf.log.Warn(retErr.Error())
-		return entities.Team{}, false, retErr
-	}
-	defer rows.Close()
-
-	res := entities.NewTeam()
-
+	user := entities.User{}
 	if rows.Next() {
-		rows.Scan(&res.Name)
-		return res, true, nil
+		rows.Scan(&user.ID, &user.Name, &user.IsActive, &user.TeamName)
+		return user, nil
+	} else if rows.Err() != nil {
+		retErr := fmt.Errorf("error of the %s: %w: %s", op, repo.ErrResProcessing, err)
+		u.conf.log.Warn(retErr.Error())
+		return entities.User{}, retErr
 	}
 
-	if rows.Err() != nil {
-		retErr := fmt.Errorf("error of the %s: %w: %w", op, repo.ErrResProcessing, rows.Err())
-		t.conf.log.Warn(retErr.Error())
-		return entities.Team{}, false, retErr
-	}
-
-	return entities.Team{}, false, nil
+	return entities.User{}, repo.ErrModelNotFound
 }

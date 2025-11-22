@@ -3,11 +3,13 @@ package chttp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/MaKcm14/pr-service/internal/entities"
+	"github.com/MaKcm14/pr-service/internal/entities/dto"
 	"github.com/MaKcm14/pr-service/internal/repo"
 	"github.com/MaKcm14/pr-service/internal/services"
 	"github.com/labstack/echo/v4"
@@ -33,7 +35,7 @@ func New(log *slog.Logger, socket string, interactor services.Interactor) HttpCo
 
 // configEndpoints sets the endpoints for the current kernel server instance.
 func (h *HttpController) configEndpoints() {
-	h.server.GET("/team/get", h.handlerTeamAdd)
+	h.server.GET("/team/get", h.handlerTeamGet)
 	h.server.GET("/users/getReview", h.handlerUsersGetReview)
 
 	h.server.POST("/team/add", h.handlerTeamAdd)
@@ -70,7 +72,7 @@ func (h *HttpController) handlerTeamGet(eCtx echo.Context) error {
 			}})
 	}
 
-	return nil
+	return eCtx.JSON(http.StatusOK, dto)
 }
 
 func (h *HttpController) handlerUsersGetReview(ctx echo.Context) error {
@@ -102,23 +104,97 @@ func (h *HttpController) handlerTeamAdd(eCtx echo.Context) error {
 					Message: ErrRespQueryAlreadyExists.Error(),
 				}})
 		}
+		h.log.Warn(fmt.Sprintf("error of the %s: %s", op, err))
+		return eCtx.JSON(http.StatusInternalServerError, ErrResponse{
+			ErrData{
+				Code:    ServerErr,
+				Message: ErrRespQueryServerError.Error(),
+			}})
 	}
 
-	return nil
+	return eCtx.JSON(http.StatusCreated, dto.TeamToTeamDTO(team))
 }
 
-func (h *HttpController) handlerUserSetIsActive(ctx echo.Context) error {
+// handlerUserSetIsActive defines the logic of handling the request for setting the user to the active.
+func (h *HttpController) handlerUserSetIsActive(eCtx echo.Context) error {
 	const op = "chttp.user-set-is-active"
-	return nil
+
+	dto := entities.User{}
+	if err := eCtx.Bind(&dto); err != nil {
+		return eCtx.JSON(http.StatusBadRequest, ErrResponse{
+			ErrData{
+				Code:    NoCandidate,
+				Message: ErrRespQueryWrongRequestData.Error(),
+			}})
+	}
+
+	ctx, _ := context.WithTimeout(eCtx.Request().Context(), time.Second*3)
+
+	user, err := h.useCase.SetUserIsActive(ctx, dto)
+	if err != nil {
+		if errors.Is(err, services.ErrEntityNotFound) {
+			return eCtx.JSON(http.StatusNotFound, ErrResponse{
+				ErrData{
+					Code:    NotFound,
+					Message: ErrRespQueryNotFound.Error(),
+				}})
+		}
+		retErr := fmt.Errorf("error of the %s: %s", op, ErrRespQueryServerError, err)
+		h.log.Warn(retErr.Error())
+		return eCtx.JSON(http.StatusInternalServerError, ErrResponse{
+			ErrData{
+				Code:    ServerErr,
+				Message: ErrRespQueryServerError.Error(),
+			}})
+	}
+
+	return eCtx.JSON(http.StatusOK, user)
 }
 
-func (h *HttpController) handlerPullRequestCreate(ctx echo.Context) error {
+// handlerPullRequestCreate defines the logic of handling the request for creating the pull-request.
+func (h *HttpController) handlerPullRequestCreate(eCtx echo.Context) error {
 	const op = "chttp.pull-request-create"
-	return nil
+
+	pullReq := dto.PullRequestDTO{}
+	if err := eCtx.Bind(&pullReq); err != nil {
+		return eCtx.JSON(http.StatusBadRequest, ErrResponse{
+			ErrData{
+				Code:    RequestDataErr,
+				Message: ErrRespQueryWrongRequestData.Error(),
+			},
+		})
+	}
+
+	ctx, _ := context.WithTimeout(eCtx.Request().Context(), time.Second*3)
+	if err := h.useCase.CreatePullRequest(ctx, pullReq); err != nil {
+		if errors.Is(err, services.ErrEntityNotFound) {
+			return eCtx.JSON(http.StatusNotFound, ErrResponse{
+				ErrData{
+					Code:    NotFound,
+					Message: ErrRespQueryNotFound.Error(),
+				}})
+		} else if errors.Is(err, services.ErrEntityAlreadyExists) {
+			eCtx.JSON(http.StatusNotFound, ErrResponse{
+				ErrData{
+					Code:    PrExists,
+					Message: ErrRespQueryAlreadyExists.Error(),
+				}})
+		}
+		h.log.Warn(fmt.Sprintf("error of the %s: %s", op, err))
+		return eCtx.JSON(http.StatusInternalServerError, ErrResponse{
+			ErrData{
+				Code:    ServerErr,
+				Message: ErrRespQueryServerError.Error(),
+			}})
+	}
+
+	return eCtx.JSON(http.StatusCreated, dto.MakePullRequestDTOShort(pullReq))
 }
 
+// handlerPullRequestMerge defines the logic of handling the request for merge the requested PR.
 func (h *HttpController) handlerPullRequestMerge(ctx echo.Context) error {
 	const op = "chttp.pull-request-merge"
+
 	return nil
 }
 

@@ -12,4 +12,5 @@ var (
 	ErrRespQueryNotFound         = errors.New("the requested model doesn't exist")
 	ErrRespQueryWrongRequestData = errors.New("error of the request's data: current format is not available")
 	ErrRespQueryAlreadyExists    = errors.New("the model already exists")
+	ErrRespQueryServerError      = errors.New("internal error was generated during request processing")
 )

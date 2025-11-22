@@ -11,11 +11,23 @@ type (
 	// Interactor defines the common interface for every interactor's abstraction.
 	Interactor interface {
 		TeamInteractor
+		UserInteractor
+		PullRequestInteractor
 	}
 
 	// TeamInteractor defines the interface of the teams's use-cases abstraction.
 	TeamInteractor interface {
-		GetTeam(ctx context.Context, name string) (dto.TeamDTO, bool, error)
-		CreateTeam(ctx context.Context, team entities.Team) error
+		GetTeam(ctx context.Context, teamName string) (dto.TeamDTO, bool, error)
+		CreateTeam(ctx context.Context, dto entities.Team) error
+	}
+
+	// UserInteractor defines the interface of the user's use-cases abstraction.
+	UserInteractor interface {
+		SetUserIsActive(ctx context.Context, dto entities.User) (entities.User, error)
+	}
+
+	// PullRequestInteractor defines the interface of the pull-requests' user-cases abstraction.
+	PullRequestInteractor interface {
+		CreatePullRequest(ctx context.Context, pullReq dto.PullRequestDTO) error
 	}
 )

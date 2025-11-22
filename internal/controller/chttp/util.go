@@ -1,12 +1,14 @@
 package chttp
 
 const (
-	TeamExists  ErrCode = "TEAM_EXISTS"
-	PrExists    ErrCode = "PR_EXISTS"
-	PrMerged    ErrCode = "PR_MERGED"
-	NotAssigned ErrCode = "NOT_ASSIGNED"
-	NoCandidate ErrCode = "NO_CANDIDATE"
-	NotFound    ErrCode = "NOT_FOUND"
+	TeamExists     ErrCode = "TEAM_EXISTS"
+	PrExists       ErrCode = "PR_EXISTS"
+	PrMerged       ErrCode = "PR_MERGED"
+	NotAssigned    ErrCode = "NOT_ASSIGNED"
+	NoCandidate    ErrCode = "NO_CANDIDATE"
+	NotFound       ErrCode = "NOT_FOUND"
+	ServerErr      ErrCode = "SERVER_ERROR"
+	RequestDataErr ErrCode = "WRONG_DATA"
 )
 
 // ErrCode defines the string error's view description.
