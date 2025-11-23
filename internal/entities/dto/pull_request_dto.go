@@ -63,3 +63,25 @@ func MakePullRequestDTOShort(pullRequest PullRequestDTO) PullRequestDTOShort {
 		AuthorID: pullRequest.AuthorID,
 	}
 }
+
+func PullRequestDTOToPullRequest(pullReq PullRequestDTO) entities.PullRequest {
+	obj := entities.PullRequest{
+		ID:        pullReq.ID,
+		Name:      pullReq.Name,
+		Status:    pullReq.Status,
+		CreatedAt: pullReq.CreatedAt,
+		MergedAt:  pullReq.MergedAt,
+		Author: entities.User{
+			ID: pullReq.AuthorID,
+		},
+		Reviewers: make([]entities.User, 0, len(pullReq.Reviewers)),
+	}
+
+	for _, userID := range pullReq.Reviewers {
+		obj.Reviewers = append(obj.Reviewers, entities.User{
+			ID: userID,
+		})
+	}
+
+	return obj
+}

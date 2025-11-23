@@ -1,6 +1,9 @@
 package entities
 
-import "time"
+import (
+	"math/rand"
+	"time"
+)
 
 const (
 	Open   PullRequestStatus = "OPEN"
@@ -35,4 +38,20 @@ func (p *PullRequest) SetCreatedAtNow() {
 
 func (p *PullRequest) SetMergedAtNow() {
 	p.MergedAt = time.Now()
+}
+
+func (p *PullRequest) SetReviewers(team Team) {
+	buff := make(map[int]struct{})
+
+	for i := 0; i != min(len(team.Members), rand.Intn(2)+1); {
+		idx := rand.Intn(len(team.Members))
+
+		if _, ok := buff[idx]; !ok {
+			if team.Members[idx].IsActive {
+				p.Reviewers = append(p.Reviewers, team.Members[idx])
+			}
+			buff[idx] = struct{}{}
+			i++
+		}
+	}
 }

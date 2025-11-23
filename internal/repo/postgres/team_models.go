@@ -3,6 +3,7 @@ package postgres
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/MaKcm14/pr-service/internal/entities"
@@ -15,40 +16,44 @@ type teamsRepo struct {
 }
 
 // GetTeam defines the logic of getting the team object for the current name.
-func (t teamsRepo) GetTeam(ctx context.Context, name string) (entities.Team, bool, error) {
+func (t teamsRepo) GetTeam(ctx context.Context, name string) (entities.Team, error) {
 	const op = "postgres.get-team"
 
-	team, ok, err := t.isTeamExists(ctx, name)
+	err := t.isTeamExists(ctx, name)
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w", op, err)
+
+		if errors.Is(err, repo.ErrModelNotFound) {
+			return entities.Team{}, fmt.Errorf("error of the %s: %w", op, err)
+		}
 		t.conf.log.Warn(retErr.Error())
-		return entities.Team{}, false, retErr
-	} else if !ok {
-		return entities.Team{}, false, nil
+
+		return entities.Team{}, retErr
 	}
 
+	team := entities.NewTeam()
 	members, err := t.getTeamMembers(ctx, name)
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w", op, err)
 		t.conf.log.Warn(retErr.Error())
-		return entities.Team{}, false, retErr
+		return entities.Team{}, retErr
 	}
 	team.Members = members
 
-	return team, true, nil
+	return team, nil
 }
 
 // CreateTeam defines the logic of creating a new team.
 func (t teamsRepo) CreateTeam(ctx context.Context, team entities.Team) error {
 	const op = "postgres.create-team"
 
-	team, ok, err := t.isTeamExists(ctx, team.Name)
-	if err != nil {
+	err := t.isTeamExists(ctx, team.Name)
+	if err != nil && !errors.Is(err, repo.ErrModelNotFound) {
 		retErr := fmt.Errorf("error of the %s: %w", op, err)
 		t.conf.log.Warn(retErr.Error())
 		return retErr
-	} else if ok {
-		return repo.ErrCreateMultipleUniqueModels
+	} else if err == nil {
+		return fmt.Errorf("error of the %s: %w", op, repo.ErrModelAlreadyExists)
 	}
 
 	if err := t.createTeam(ctx, team); err != nil {
@@ -152,30 +157,19 @@ const selectTeam = `
 `
 
 // isTeamExists defines the logic of checking whether the current team exists.
-func (t teamsRepo) isTeamExists(ctx context.Context, name string) (entities.Team, bool, error) {
+func (t teamsRepo) isTeamExists(ctx context.Context, name string) error {
 	const op = "postgres.is-team-exists"
 
-	rows, err := t.conf.conn.Query(ctx, selectTeam, name)
-
+	tag, err := t.conf.conn.Exec(ctx, selectTeam, name)
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w: %w", op, repo.ErrQueryExec, err)
 		t.conf.log.Warn(retErr.Error())
-		return entities.Team{}, false, retErr
-	}
-	defer rows.Close()
-
-	res := entities.NewTeam()
-
-	if rows.Next() {
-		rows.Scan(&res.Name)
-		return res, true, nil
+		return retErr
 	}
 
-	if rows.Err() != nil {
-		retErr := fmt.Errorf("error of the %s: %w: %w", op, repo.ErrResProcessing, rows.Err())
-		t.conf.log.Warn(retErr.Error())
-		return entities.Team{}, false, retErr
+	if tag.RowsAffected() != 0 {
+		return nil
 	}
 
-	return entities.Team{}, false, nil
+	return fmt.Errorf("error of the %s: %w", op, repo.ErrModelNotFound)
 }

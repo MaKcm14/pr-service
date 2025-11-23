@@ -17,13 +17,14 @@ type (
 
 	// TeamRepository defines the abstraction of the team's model ops interaction.
 	TeamRepository interface {
-		GetTeam(ctx context.Context, name string) (entities.Team, bool, error)
+		GetTeam(ctx context.Context, name string) (entities.Team, error)
 		CreateTeam(ctx context.Context, team entities.Team) error
 	}
 
 	// UserRepository defines the abstraction of the user's model ops interaction.
 	UserRepository interface {
 		SetUserIsActive(ctx context.Context, dto entities.User) (entities.User, error)
+		GetUser(ctx context.Context, id entities.UserID) (entities.User, error)
 	}
 
 	PullRequestRepository interface {

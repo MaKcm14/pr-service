@@ -33,7 +33,7 @@ func (u usersRepo) SetUserIsActive(ctx context.Context, dto entities.User) (enti
 		return entities.User{}, repo.ErrModelNotFound
 	}
 
-	user, err := u.getUser(ctx, dto.ID)
+	user, err := u.GetUser(ctx, dto.ID)
 	if err != nil {
 		return entities.User{}, err
 	}
@@ -48,7 +48,7 @@ const selectUserTeamName = `
 	WHERE users.id=$1
 `
 
-func (u usersRepo) getUser(ctx context.Context, id entities.UserID) (entities.User, error) {
+func (u usersRepo) GetUser(ctx context.Context, id entities.UserID) (entities.User, error) {
 	const op = "postgres.get-user-team-name"
 
 	rows, err := u.conf.conn.Query(ctx, selectUserTeamName, id)

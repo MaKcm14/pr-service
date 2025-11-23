@@ -14,14 +14,23 @@ import (
 
 // PullRequestInteractor defines the logic of the use-cases more connected with the pull-requests.
 type PullRequestInteractor struct {
-	log  *slog.Logger
-	repo services.PullRequestRepository
+	log      *slog.Logger
+	prRepo   services.PullRequestRepository
+	userRepo services.UserRepository
+	teamRepo services.TeamRepository
 }
 
-func NewPullRequestInteractor(log *slog.Logger, repo services.PullRequestRepository) PullRequestInteractor {
+func NewPullRequestInteractor(
+	log *slog.Logger,
+	prRepo services.PullRequestRepository,
+	userRepo services.UserRepository,
+	teamRepo services.TeamRepository,
+) PullRequestInteractor {
 	return PullRequestInteractor{
-		log:  log,
-		repo: repo,
+		log:      log,
+		prRepo:   prRepo,
+		userRepo: userRepo,
+		teamRepo: teamRepo,
 	}
 }
 
@@ -29,7 +38,28 @@ func NewPullRequestInteractor(log *slog.Logger, repo services.PullRequestReposit
 func (p PullRequestInteractor) CreatePullRequest(ctx context.Context, pullRequest dto.PullRequestDTO) error {
 	const op = "ipreq.create-pull-request"
 
-	if err := p.repo.CreatePullRequest(ctx, pullRequest); err != nil {
+	user, err := p.userRepo.GetUser(ctx, pullRequest.AuthorID)
+	if err != nil {
+		retErr := fmt.Errorf("error of the %s: %w: %s", op, services.ErrRepositoryInteraction, err)
+
+		if errors.Is(err, repo.ErrModelNotFound) {
+			return fmt.Errorf("error of the %s: %w: %s", op, services.ErrEntityNotFound, err)
+		}
+		p.log.Warn(retErr.Error())
+
+		return retErr
+	}
+
+	team, err := p.teamRepo.GetTeam(ctx, user.TeamName)
+	if err != nil {
+		retErr := fmt.Errorf("error of the %s: %w: %s", op, services.ErrRepositoryInteraction, err)
+		p.log.Warn(retErr.Error())
+		return retErr
+	}
+	pullReq := dto.PullRequestDTOToPullRequest(pullRequest)
+	pullReq.SetReviewers(team)
+
+	if err := p.prRepo.CreatePullRequest(ctx, pullRequest); err != nil {
 		retErr := fmt.Errorf("error of the %s: %w: %s", op, services.ErrRepositoryInteraction, err)
 
 		if errors.Is(err, repo.ErrModelNotFound) {
@@ -53,7 +83,7 @@ func (p PullRequestInteractor) SetPullRequestStatus(
 ) (dto.PullRequestDTO, error) {
 	const op = "ipreq.set-pull-request-status"
 
-	res, err := p.repo.SetPullRequestStatus(ctx, status, pullReq)
+	res, err := p.prRepo.SetPullRequestStatus(ctx, status, pullReq)
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w: %s", op, services.ErrRepositoryInteraction, err)
 

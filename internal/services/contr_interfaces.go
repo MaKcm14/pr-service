@@ -17,7 +17,7 @@ type (
 
 	// TeamInteractor defines the interface of the teams's use-cases abstraction.
 	TeamInteractor interface {
-		GetTeam(ctx context.Context, teamName string) (dto.TeamDTO, bool, error)
+		GetTeam(ctx context.Context, teamName string) (dto.TeamDTO, error)
 		CreateTeam(ctx context.Context, dto entities.Team) error
 	}
 

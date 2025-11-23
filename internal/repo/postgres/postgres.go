@@ -6,6 +6,8 @@ import (
 
 // PostgreSQLRepo defines the logic of interaction with the PostgreSQL.
 type PostgreSQLRepo struct {
+	conf *postgresConfig
+
 	teamsRepo
 	usersRepo
 	pullRequestRepo
@@ -17,6 +19,7 @@ func New(log *slog.Logger, socket string) (PostgreSQLRepo, error) {
 		return PostgreSQLRepo{}, err
 	}
 	return PostgreSQLRepo{
+		conf: conf,
 		teamsRepo: teamsRepo{
 			conf: conf,
 		},
@@ -24,8 +27,7 @@ func New(log *slog.Logger, socket string) (PostgreSQLRepo, error) {
 			conf: conf,
 		},
 		pullRequestRepo: pullRequestRepo{
-			conf:      conf,
-			usersRepo: usersRepo{conf},
+			conf: conf,
 		},
 	}, nil
 }

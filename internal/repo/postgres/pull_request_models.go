@@ -13,24 +13,32 @@ import (
 // pullRequestRepo defines the repo-object for interaction with the pull-requests models.
 type pullRequestRepo struct {
 	conf *postgresConfig
-	usersRepo
 }
 
 // CreatePullRequest defines the logic of creating the pull request in the repo.
-func (p pullRequestRepo) CreatePullRequest(ctx context.Context, pullRequest dto.PullRequestDTO) error {
+func (p PostgreSQLRepo) CreatePullRequest(ctx context.Context, pullRequest dto.PullRequestDTO) error {
 	const op = "postgres.create-pull-request"
 
 	if err := p.isExists(ctx, pullRequest.ID); err == nil || err != nil && !errors.Is(err, repo.ErrModelNotFound) {
 		retErr := fmt.Errorf("error of the %s: %w", op, err)
+
 		if err == nil {
 			return fmt.Errorf("error of the %s: %w", op, repo.ErrModelAlreadyExists)
 		}
 		p.conf.log.Warn(retErr.Error())
+
 		return retErr
 	}
 
-	if _, err := p.getUser(ctx, pullRequest.AuthorID); err != nil {
-		retErr := fmt.Errorf("error of the %s: %w: %s", op, repo.ErrModelNotFound, err)
+	_, err := p.GetUser(ctx, pullRequest.AuthorID)
+	if err != nil {
+		retErr := fmt.Errorf("error of the %s: %w", op, err)
+
+		if errors.Is(err, repo.ErrModelNotFound) {
+			return fmt.Errorf("error of the %s: %w", op, err)
+		}
+		p.conf.log.Warn(retErr.Error())
+
 		return retErr
 	}
 

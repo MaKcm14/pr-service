@@ -2,11 +2,13 @@ package iteam
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
 	"github.com/MaKcm14/pr-service/internal/entities"
 	"github.com/MaKcm14/pr-service/internal/entities/dto"
+	"github.com/MaKcm14/pr-service/internal/repo"
 	"github.com/MaKcm14/pr-service/internal/services"
 )
 
@@ -24,17 +26,22 @@ func NewTeamUseCase(log *slog.Logger, repo services.TeamRepository) TeamUseCase 
 }
 
 // GetTeam defines the logic of getting the team from the repository.
-func (t TeamUseCase) GetTeam(ctx context.Context, teamName string) (dto.TeamDTO, bool, error) {
+func (t TeamUseCase) GetTeam(ctx context.Context, teamName string) (dto.TeamDTO, error) {
 	const op = "iteam.get-team"
 
-	team, isExists, err := t.repo.GetTeam(ctx, teamName)
+	team, err := t.repo.GetTeam(ctx, teamName)
 	if err != nil {
-		retErr := fmt.Errorf("error of the %s: %w", op, err)
+		retErr := fmt.Errorf("error of the %s: %w: %s", op, services.ErrRepositoryInteraction, err)
+
+		if errors.Is(err, repo.ErrModelNotFound) {
+			return dto.TeamDTO{}, fmt.Errorf("error of the %s: %w: %s", op, services.ErrEntityNotFound, err)
+		}
 		t.log.Warn(retErr.Error())
-		return dto.TeamDTO{}, false, retErr
+
+		return dto.TeamDTO{}, retErr
 	}
 
-	return dto.TeamToTeamDTO(team), isExists, nil
+	return dto.TeamToTeamDTO(team), nil
 }
 
 // CreateTeam defines the logic of creating the team in the repository.

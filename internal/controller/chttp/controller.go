@@ -59,16 +59,22 @@ func (h *HttpController) handlerTeamGet(eCtx echo.Context) error {
 	}
 
 	ctx, _ := context.WithTimeout(eCtx.Request().Context(), time.Second*3)
+	dto, err := h.useCase.GetTeam(ctx, res.(string))
 
-	dto, isExists, err := h.useCase.GetTeam(ctx, res.(string))
 	if err != nil {
+		if errors.Is(err, services.ErrEntityNotFound) {
+			return eCtx.JSON(http.StatusNotFound, ErrResponse{
+				ErrData{
+					Code:    NotFound,
+					Message: ErrRespQueryNotFound.Error(),
+				}})
+		}
 		h.log.Warn("error of the %s: %s", op, err)
-		return eCtx.JSON(http.StatusOK, dto)
-	} else if !isExists {
-		return eCtx.JSON(http.StatusNotFound, ErrResponse{
+
+		return eCtx.JSON(http.StatusInternalServerError, ErrResponse{
 			ErrData{
-				Code:    NotFound,
-				Message: ErrRespQueryNotFound.Error(),
+				Code:    ServerErr,
+				Message: ErrRespQueryServerError.Error(),
 			}})
 	}
 
