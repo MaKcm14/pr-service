@@ -10,4 +10,5 @@ var (
 	ErrModelNotFound              = errors.New("repo: error of finding the model")
 	ErrDependModelsNotFound       = errors.New("repo: error of finding the dependendent model")
 	ErrModelAlreadyExists         = errors.New("repo: model already exists")
+	ErrStartTransaction           = errors.New("repo: error of starting the transaction")
 )
