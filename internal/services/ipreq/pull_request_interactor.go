@@ -117,3 +117,64 @@ func (p PullRequestInteractor) GetUserPullRequests(ctx context.Context, id entit
 
 	return res, nil
 }
+
+func (p PullRequestInteractor) ReassignUser(ctx context.Context, reassignData dto.PullRequestChangeReviewerDTO) (dto.PullRequestDTO, entities.UserID, error) {
+	const op = "ipreq.reassign-user"
+
+	user, err := p.userRepo.GetUser(ctx, reassignData.OldUserID)
+	if err != nil {
+		retErr := fmt.Errorf("error of the %s: %w: %s", op, services.ErrRepositoryInteraction, err)
+
+		if errors.Is(err, repo.ErrModelNotFound) {
+			return dto.PullRequestDTO{}, "", fmt.Errorf("error of the %s: %w: %s", op, services.ErrEntityNotFound, err)
+		}
+		p.log.Warn(retErr.Error())
+
+		return dto.PullRequestDTO{}, "", retErr
+	}
+
+	pullReq, err := p.prRepo.GetPullRequest(ctx, reassignData.ID)
+	if err != nil {
+		retErr := fmt.Errorf("error of the %s: %w: %s", op, services.ErrRepositoryInteraction, err)
+
+		if errors.Is(err, repo.ErrModelNotFound) {
+			return dto.PullRequestDTO{}, "", fmt.Errorf("error of the %s: %w: %s", op, services.ErrEntityNotFound, err)
+		}
+		p.log.Warn(retErr.Error())
+
+		return dto.PullRequestDTO{}, "", retErr
+	}
+
+	team, err := p.teamRepo.GetTeam(ctx, user.TeamName)
+	if err != nil {
+		retErr := fmt.Errorf("error of the %s: %w: %s", op, services.ErrRepositoryInteraction, err)
+
+		if errors.Is(err, repo.ErrModelNotFound) {
+			return dto.PullRequestDTO{}, "", fmt.Errorf("error of the %s: %w: %s", op, services.ErrEntityNotFound, err)
+		}
+		p.log.Warn(retErr.Error())
+
+		return dto.PullRequestDTO{}, "", retErr
+	}
+
+	prEnt := dto.PullRequestDTOToPullRequest(pullReq)
+	id, err := prEnt.ReassignReviewer(user.ID, team)
+
+	if err != nil {
+		if errors.Is(err, entities.ErrStatusForReassign) {
+			return dto.PullRequestDTO{}, "", fmt.Errorf("error of the %s: %w: %s", op, services.ErrDomainRulesWithROState, err)
+		} else if errors.Is(err, entities.ErrReviewerAssign) {
+			return dto.PullRequestDTO{}, "", fmt.Errorf("error of the %s: %w: %s", op, services.ErrDomainRulesNoCandidate, err)
+		} else if errors.Is(err, entities.ErrReviewerIsWrong) {
+			return dto.PullRequestDTO{}, "", fmt.Errorf("error of the %s: %w: %s", op, services.ErrWrongCandidate, err)
+		}
+	}
+
+	if err := p.prRepo.ChangeReviewer(ctx, reassignData.OldUserID, id, pullReq); err != nil {
+		retErr := fmt.Errorf("error of the %s: %w: %s", op, services.ErrRepositoryInteraction, err)
+		p.log.Warn(retErr.Error())
+		return dto.PullRequestDTO{}, "", retErr
+	}
+
+	return dto.PullRequestToPullRequestDTO(prEnt), id, nil
+}

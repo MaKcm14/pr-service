@@ -74,14 +74,19 @@ func PullRequestDTOToPullRequest(pullReq PullRequestDTO) entities.PullRequest {
 		Author: entities.User{
 			ID: pullReq.AuthorID,
 		},
-		Reviewers: make([]entities.User, 0, len(pullReq.Reviewers)),
+		Reviewers: make(map[entities.UserID]entities.User, len(pullReq.Reviewers)),
 	}
 
 	for _, userID := range pullReq.Reviewers {
-		obj.Reviewers = append(obj.Reviewers, entities.User{
+		obj.Reviewers[userID] = entities.User{
 			ID: userID,
-		})
+		}
 	}
 
 	return obj
+}
+
+type PullRequestChangeReviewerDTO struct {
+	ID        entities.PullRequestID `json:"pull_request_id"`
+	OldUserID entities.UserID        `json:"old_user_id"`
 }

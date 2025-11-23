@@ -23,12 +23,12 @@ type PullRequest struct {
 	CreatedAt time.Time
 	MergedAt  time.Time
 	Author    User
-	Reviewers []User
+	Reviewers map[UserID]User
 }
 
 func NewPullRequest() PullRequest {
 	return PullRequest{
-		Reviewers: make([]User, 0, 5),
+		Reviewers: make(map[UserID]User, 5),
 	}
 }
 
@@ -40,18 +40,46 @@ func (p *PullRequest) SetMergedAtNow() {
 	p.MergedAt = time.Now()
 }
 
-func (p *PullRequest) SetReviewers(team Team) {
-	buff := make(map[int]struct{})
-
+func (p *PullRequest) SetReviewers(team Team) error {
+	gen := makeReviewerRandGen(team.Members, nil)
 	for i := 0; i != min(len(team.Members), rand.Intn(2)+1); {
-		idx := rand.Intn(len(team.Members))
-
-		if _, ok := buff[idx]; !ok {
-			if team.Members[idx].IsActive {
-				p.Reviewers = append(p.Reviewers, team.Members[idx])
-			}
-			buff[idx] = struct{}{}
-			i++
+		pos, err := gen()
+		if err != nil {
+			break
 		}
+		p.Reviewers[team.Members[pos].ID] = team.Members[pos]
+		i++
 	}
+
+	if len(p.Reviewers) == 0 {
+		return ErrReviewerAssign
+	}
+	return nil
+}
+
+func (p *PullRequest) ReassignReviewer(id UserID, team Team) (UserID, error) {
+	if p.Status == Merged {
+		return "", ErrStatusForReassign
+	}
+
+	if !p.CheckUserIsReviewer(id) {
+		return "", ErrReviewerIsWrong
+	}
+
+	delete(p.Reviewers, id)
+
+	gen := makeReviewerRandGen(team.Members, []UserID{id})
+
+	pos, err := gen()
+	if err != nil {
+		return "", err
+	}
+
+	p.Reviewers[team.Members[pos].ID] = team.Members[pos]
+	return "", nil
+}
+
+func (p *PullRequest) CheckUserIsReviewer(id UserID) bool {
+	_, val := p.Reviewers[id]
+	return val
 }

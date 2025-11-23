@@ -31,5 +31,7 @@ type (
 		CreatePullRequest(ctx context.Context, pullRequest dto.PullRequestDTO) error
 		SetPullRequestStatus(ctx context.Context, status entities.PullRequestStatus, pullReq dto.PullRequestDTO) (dto.PullRequestDTO, error)
 		GetUserPullRequests(ctx context.Context, id entities.UserID) ([]dto.PullRequestDTOShort, error)
+		GetPullRequest(ctx context.Context, id entities.PullRequestID) (dto.PullRequestDTO, error)
+		ChangeReviewer(ctx context.Context, lastID entities.UserID, newID entities.UserID, pullReq dto.PullRequestDTO) error
 	}
 )

@@ -19,7 +19,7 @@ type pullRequestRepo struct {
 func (p PostgreSQLRepo) CreatePullRequest(ctx context.Context, pullRequest dto.PullRequestDTO) error {
 	const op = "postgres.create-pull-request"
 
-	if err := p.isExists(ctx, pullRequest.ID); err == nil || err != nil && !errors.Is(err, repo.ErrModelNotFound) {
+	if err := p.isPullRequestExists(ctx, pullRequest.ID); err == nil || err != nil && !errors.Is(err, repo.ErrModelNotFound) {
 		retErr := fmt.Errorf("error of the %s: %w", op, err)
 
 		if err == nil {
@@ -87,7 +87,7 @@ const checkExisting = `
 `
 
 // isExists defines the logic of checking the existing of the pull request.
-func (p pullRequestRepo) isExists(ctx context.Context, id entities.PullRequestID) error {
+func (p pullRequestRepo) isPullRequestExists(ctx context.Context, id entities.PullRequestID) error {
 	const op = "postgres.is-exists"
 
 	tag, err := p.conf.conn.Exec(ctx, checkExisting)
@@ -117,7 +117,7 @@ func (p pullRequestRepo) SetPullRequestStatus(
 ) (dto.PullRequestDTO, error) {
 	const op = "postgres.set-pull-request-to-merged"
 
-	if err := p.isExists(ctx, pullReq.ID); err != nil {
+	if err := p.isPullRequestExists(ctx, pullReq.ID); err != nil {
 		retErr := fmt.Errorf("error of the %s: %w", op, err)
 
 		if errors.Is(err, repo.ErrModelNotFound) {
@@ -135,7 +135,7 @@ func (p pullRequestRepo) SetPullRequestStatus(
 		return dto.PullRequestDTO{}, err
 	}
 
-	res, err := p.getPullRequest(ctx, pullReq)
+	res, err := p.getPullRequest(ctx, pullReq.ID)
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w", op, err)
 		p.conf.log.Warn(retErr.Error())
@@ -150,13 +150,40 @@ const selectPullRequest = `
 	WHERE id=$1
 `
 
+func (p PostgreSQLRepo) GetPullRequest(
+	ctx context.Context,
+	id entities.PullRequestID,
+) (dto.PullRequestDTO, error) {
+	const op = "postgres.get-pull-request-global"
+
+	if err := p.isPullRequestExists(ctx, id); err != nil {
+		retErr := fmt.Errorf("error of the %s: %w", op, err)
+
+		if errors.Is(err, repo.ErrModelNotFound) {
+			return dto.PullRequestDTO{}, retErr
+		}
+		p.conf.log.Warn(retErr.Error())
+
+		return dto.PullRequestDTO{}, retErr
+	}
+
+	res, err := p.getPullRequest(ctx, id)
+	if err != nil {
+		retErr := fmt.Errorf("error of the %s: %w", op, err)
+		p.conf.log.Warn(retErr.Error())
+		return dto.PullRequestDTO{}, retErr
+	}
+
+	return res, nil
+}
+
 func (p pullRequestRepo) getPullRequest(
 	ctx context.Context,
-	pullReq dto.PullRequestDTO,
+	id entities.PullRequestID,
 ) (dto.PullRequestDTO, error) {
 	const op = "postgres.get-pull-request"
 
-	rows, err := p.conf.conn.Query(ctx, selectMembers, pullReq.ID)
+	rows, err := p.conf.conn.Query(ctx, selectMembers, id)
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w: %s", op, repo.ErrQueryExec, err)
 		p.conf.log.Warn(retErr.Error())
@@ -178,7 +205,7 @@ func (p pullRequestRepo) getPullRequest(
 		return dto.PullRequestDTO{}, retErr
 	}
 
-	reviewers, err := p.getPullRequestReviewers(ctx, pullReq)
+	reviewers, err := p.getPullRequestReviewers(ctx, id)
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w", op, err)
 		p.conf.log.Warn(retErr.Error())
@@ -199,11 +226,11 @@ const selectPRReviewers = `
 
 func (p pullRequestRepo) getPullRequestReviewers(
 	ctx context.Context,
-	pullReq dto.PullRequestDTO,
+	id entities.PullRequestID,
 ) ([]entities.UserID, error) {
 	const op = "postgres.get-pull-request-reviewers"
 
-	rows, err := p.conf.conn.Query(ctx, selectPRReviewers, pullReq.ID)
+	rows, err := p.conf.conn.Query(ctx, selectPRReviewers, id)
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w: %s", op, repo.ErrQueryExec, err)
 		p.conf.log.Warn(retErr.Error())
@@ -242,7 +269,7 @@ func (p PostgreSQLRepo) GetUserPullRequests(ctx context.Context, id entities.Use
 		retErr := fmt.Errorf("error of the %s: %w", op, err)
 
 		if errors.Is(err, repo.ErrModelNotFound) {
-			return nil, fmt.Errorf("error of the %s: %w", op, err)
+			return nil, retErr
 		}
 		p.conf.log.Warn(retErr.Error())
 
@@ -276,4 +303,30 @@ func (p PostgreSQLRepo) GetUserPullRequests(ctx context.Context, id entities.Use
 	}
 
 	return res, nil
+}
+
+const changeReviewer = `
+	UPDATE assigned_reviewers
+	SET user_id=$1
+	WHERE pr_id=$1 AND user_id=$2
+`
+
+func (p PostgreSQLRepo) ChangeReviewer(ctx context.Context, lastID entities.UserID, newID entities.UserID, pullReq dto.PullRequestDTO) error {
+	const op = "postgres.change-reviewers-list"
+
+	tag, err := p.conf.conn.Exec(ctx, changeReviewer, lastID, pullReq.ID, newID)
+
+	if err != nil {
+		retErr := fmt.Errorf("error of the %s: %w: %s", op, repo.ErrQueryExec, err)
+		p.conf.log.Warn(retErr.Error())
+		return retErr
+	}
+
+	if tag.RowsAffected() == 0 {
+		retErr := fmt.Errorf("error of the %s: %w: %s", op, repo.ErrModelNotFound, err)
+		p.conf.log.Warn(retErr.Error())
+		return retErr
+	}
+
+	return nil
 }

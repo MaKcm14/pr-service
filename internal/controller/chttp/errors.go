@@ -13,4 +13,7 @@ var (
 	ErrRespQueryWrongRequestData = errors.New("error of the request's data: current format is not available")
 	ErrRespQueryAlreadyExists    = errors.New("the model already exists")
 	ErrRespQueryServerError      = errors.New("internal error was generated during request processing")
+	ErrRespQueryOpIsRestrict     = errors.New("can't complete this operation due to the violation of changing the internal state")
+	ErrRespQueryNoCandidate      = errors.New("couldn't find the needed candidates for the current operation")
+	ErrRespQueryWrongCandidate   = errors.New("couldn't complete the operation with the current candidate due to it's wrong")
 )

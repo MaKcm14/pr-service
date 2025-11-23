@@ -265,8 +265,70 @@ func (h *HttpController) handlerPullRequestMerge(eCtx echo.Context) error {
 	return eCtx.JSON(http.StatusOK, res)
 }
 
-func (h *HttpController) handlerPullRequestReassign(ctx echo.Context) error {
+// handlerPullRequestReassign defines the logic of handling the request for reassignin the PR's
+// reviewers.
+func (h *HttpController) handlerPullRequestReassign(eCtx echo.Context) error {
 	const op = "chttp.pull-request-reassign"
 
-	return nil
+	data := dto.PullRequestChangeReviewerDTO{}
+	if err := eCtx.Bind(&data); err != nil {
+		return eCtx.JSON(http.StatusBadRequest, ErrResponse{
+			ErrData{
+				Code:    RequestDataErr,
+				Message: ErrRespQueryWrongRequestData.Error(),
+			},
+		})
+	}
+
+	ctx, _ := context.WithTimeout(eCtx.Request().Context(), time.Second*3)
+	res, newId, err := h.useCase.ReassignUser(ctx, data)
+	if err != nil {
+		retErr := fmt.Errorf("error of the %s: %s", op, err)
+
+		if errors.Is(err, services.ErrEntityNotFound) {
+			return eCtx.JSON(http.StatusNotFound, ErrResponse{
+				ErrData{
+					Code:    NotFound,
+					Message: ErrRespQueryServerError.Error(),
+				},
+			})
+		} else if errors.Is(err, services.ErrDomainRulesWithROState) {
+			return eCtx.JSON(http.StatusConflict, ErrResponse{
+				ErrData{
+					Code:    PrMerged,
+					Message: ErrRespQueryOpIsRestrict.Error(),
+				},
+			})
+		} else if errors.Is(err, services.ErrDomainRulesNoCandidate) {
+			return eCtx.JSON(http.StatusConflict, ErrResponse{
+				ErrData{
+					Code:    NoCandidate,
+					Message: ErrRespQueryNoCandidate.Error(),
+				},
+			})
+		} else if errors.Is(err, services.ErrWrongCandidate) {
+			return eCtx.JSON(http.StatusConflict, ErrResponse{
+				ErrData{
+					Code:    NotAssigned,
+					Message: ErrRespQueryWrongCandidate.Error(),
+				},
+			})
+		}
+		h.log.Warn(retErr.Error())
+
+		return eCtx.JSON(http.StatusInternalServerError, ErrResponse{
+			ErrData{
+				Code:    ServerErr,
+				Message: ErrRespQueryServerError.Error(),
+			},
+		})
+	}
+
+	return eCtx.JSON(http.StatusOK, struct {
+		PullRequest dto.PullRequestDTO `json:"pr"`
+		ReplacedBy  entities.UserID    `json:"replaced_by"`
+	}{
+		PullRequest: res,
+		ReplacedBy:  newId,
+	})
 }
