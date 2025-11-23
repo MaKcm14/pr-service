@@ -2,23 +2,26 @@ package postgres
 
 import (
 	"log/slog"
+	"sync"
 )
 
 // PostgreSQLRepo defines the logic of interaction with the PostgreSQL.
 type PostgreSQLRepo struct {
 	conf *postgresConfig
 
-	teamsRepo
-	usersRepo
-	pullRequestRepo
+	teamsRepo teamsRepo
+	usersRepo usersRepo
+	prRepo    pullRequestRepo
+
+	closer sync.Once
 }
 
-func New(log *slog.Logger, socket string) (PostgreSQLRepo, error) {
+func New(log *slog.Logger, socket string) (*PostgreSQLRepo, error) {
 	conf, err := newPostgresConfig(log, socket)
 	if err != nil {
-		return PostgreSQLRepo{}, err
+		return &PostgreSQLRepo{}, err
 	}
-	return PostgreSQLRepo{
+	return &PostgreSQLRepo{
 		conf: conf,
 		teamsRepo: teamsRepo{
 			conf: conf,
@@ -26,8 +29,14 @@ func New(log *slog.Logger, socket string) (PostgreSQLRepo, error) {
 		usersRepo: usersRepo{
 			conf: conf,
 		},
-		pullRequestRepo: pullRequestRepo{
+		prRepo: pullRequestRepo{
 			conf: conf,
 		},
 	}, nil
+}
+
+func (p *PostgreSQLRepo) Close() {
+	p.closer.Do(func() {
+		p.conf.close()
+	})
 }

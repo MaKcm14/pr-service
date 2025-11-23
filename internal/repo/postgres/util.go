@@ -38,3 +38,7 @@ func newPostgresConfig(log *slog.Logger, socket string) (*postgresConfig, error)
 		conn: conn,
 	}, nil
 }
+
+func (p postgresConfig) close() {
+	p.conn.Close()
+}

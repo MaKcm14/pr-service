@@ -12,21 +12,21 @@ import (
 	"github.com/MaKcm14/pr-service/internal/services"
 )
 
-// PullRequestInteractor defines the logic of the use-cases more connected with the pull-requests.
-type PullRequestInteractor struct {
+// PullRequestUseCase defines the logic of the use-cases more connected with the pull-requests.
+type PullRequestUseCase struct {
 	log      *slog.Logger
 	prRepo   services.PullRequestRepository
 	userRepo services.UserRepository
 	teamRepo services.TeamRepository
 }
 
-func NewPullRequestInteractor(
+func NewPullRequestUseCase(
 	log *slog.Logger,
 	prRepo services.PullRequestRepository,
 	userRepo services.UserRepository,
 	teamRepo services.TeamRepository,
-) PullRequestInteractor {
-	return PullRequestInteractor{
+) *PullRequestUseCase {
+	return &PullRequestUseCase{
 		log:      log,
 		prRepo:   prRepo,
 		userRepo: userRepo,
@@ -35,7 +35,7 @@ func NewPullRequestInteractor(
 }
 
 // CreatePullRequest defines the logic of creating the pull-request.
-func (p PullRequestInteractor) CreatePullRequest(ctx context.Context, pullRequest dto.PullRequestDTO) error {
+func (p *PullRequestUseCase) CreatePullRequest(ctx context.Context, pullRequest dto.PullRequestDTO) error {
 	const op = "ipreq.create-pull-request"
 
 	user, err := p.userRepo.GetUser(ctx, pullRequest.AuthorID)
@@ -76,7 +76,7 @@ func (p PullRequestInteractor) CreatePullRequest(ctx context.Context, pullReques
 }
 
 // SetPullRequestStatus defines the logic of changing the status for the pull-request object.
-func (p PullRequestInteractor) SetPullRequestStatus(
+func (p *PullRequestUseCase) SetPullRequestStatus(
 	ctx context.Context,
 	status entities.PullRequestStatus,
 	pullReq dto.PullRequestDTO,
@@ -99,7 +99,7 @@ func (p PullRequestInteractor) SetPullRequestStatus(
 	return res, nil
 }
 
-func (p PullRequestInteractor) GetUserPullRequests(ctx context.Context, id entities.UserID) ([]dto.PullRequestDTOShort, error) {
+func (p *PullRequestUseCase) GetUserPullRequests(ctx context.Context, id entities.UserID) ([]dto.PullRequestDTOShort, error) {
 	const op = "ipreq.get-user-pull-requests"
 
 	res, err := p.prRepo.GetUserPullRequests(ctx, id)
@@ -118,7 +118,7 @@ func (p PullRequestInteractor) GetUserPullRequests(ctx context.Context, id entit
 	return res, nil
 }
 
-func (p PullRequestInteractor) ReassignUser(ctx context.Context, reassignData dto.PullRequestChangeReviewerDTO) (dto.PullRequestDTO, entities.UserID, error) {
+func (p *PullRequestUseCase) ReassignUser(ctx context.Context, reassignData dto.PullRequestChangeReviewerDTO) (dto.PullRequestDTO, entities.UserID, error) {
 	const op = "ipreq.reassign-user"
 
 	user, err := p.userRepo.GetUser(ctx, reassignData.OldUserID)
@@ -177,4 +177,10 @@ func (p PullRequestInteractor) ReassignUser(ctx context.Context, reassignData dt
 	}
 
 	return dto.PullRequestToPullRequestDTO(prEnt), id, nil
+}
+
+func (p *PullRequestUseCase) Close() {
+	p.prRepo.Close()
+	p.teamRepo.Close()
+	p.userRepo.Close()
 }

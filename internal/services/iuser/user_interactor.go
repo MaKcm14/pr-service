@@ -16,14 +16,14 @@ type UserUseCase struct {
 	repo services.UserRepository
 }
 
-func NewUserUseCase(log *slog.Logger, repo services.UserRepository) UserUseCase {
-	return UserUseCase{
+func NewUserUseCase(log *slog.Logger, repo services.UserRepository) *UserUseCase {
+	return &UserUseCase{
 		log:  log,
 		repo: repo,
 	}
 }
 
-func (u UserUseCase) SetUserIsActive(ctx context.Context, dto entities.User) (entities.User, error) {
+func (u *UserUseCase) SetUserIsActive(ctx context.Context, dto entities.User) (entities.User, error) {
 	const op = "iuser.set-user-is-active"
 
 	user, err := u.repo.SetUserIsActive(ctx, dto)
@@ -39,4 +39,8 @@ func (u UserUseCase) SetUserIsActive(ctx context.Context, dto entities.User) (en
 	}
 
 	return user, nil
+}
+
+func (u *UserUseCase) Close() {
+	u.repo.Close()
 }

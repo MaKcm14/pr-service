@@ -9,18 +9,21 @@ import (
 
 // Config defines the service's configuration data-object.
 type Config struct {
-	Socket string
+	Socket   string
+	DBSocket string
 }
 
-func NewConfig(log *slog.Logger, opts ...ConfigOpt) (Config, error) {
+func (c *Config) Configure(log *slog.Logger, opts ...ConfigOpt) error {
 	const op = "cfg.new-config"
+
+	log.Info("starting configuring the service")
 
 	if err := godotenv.Load("../../configs/.env"); err != nil {
 		retErr := fmt.Errorf("%w: %w", ErrEnvFile, err)
 		log.Error(fmt.Sprintf(
 			"error of the %s: %s", op, retErr,
 		))
-		return Config{}, retErr
+		return retErr
 	}
 
 	conf := Config{}
@@ -29,9 +32,9 @@ func NewConfig(log *slog.Logger, opts ...ConfigOpt) (Config, error) {
 			log.Error(fmt.Sprintf(
 				"error of the %s: %s", op, err,
 			))
-			return Config{}, err
+			return err
 		}
 	}
 
-	return conf, nil
+	return nil
 }

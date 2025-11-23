@@ -3,6 +3,10 @@ package chttp
 import "errors"
 
 var (
+	ErrStartingServer = errors.New("chttp: error of starting the server")
+)
+
+var (
 	ErrQueryParam      = errors.New("chttp: error of the query param's domain")
 	ErrQueryEmptyParam = errors.New("chttp: error while processing the empty param")
 )

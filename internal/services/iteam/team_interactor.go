@@ -18,15 +18,15 @@ type TeamUseCase struct {
 	repo services.TeamRepository
 }
 
-func NewTeamUseCase(log *slog.Logger, repo services.TeamRepository) TeamUseCase {
-	return TeamUseCase{
+func NewTeamUseCase(log *slog.Logger, repo services.TeamRepository) *TeamUseCase {
+	return &TeamUseCase{
 		log:  log,
 		repo: repo,
 	}
 }
 
 // GetTeam defines the logic of getting the team from the repository.
-func (t TeamUseCase) GetTeam(ctx context.Context, teamName string) (dto.TeamDTO, error) {
+func (t *TeamUseCase) GetTeam(ctx context.Context, teamName string) (dto.TeamDTO, error) {
 	const op = "iteam.get-team"
 
 	team, err := t.repo.GetTeam(ctx, teamName)
@@ -45,7 +45,7 @@ func (t TeamUseCase) GetTeam(ctx context.Context, teamName string) (dto.TeamDTO,
 }
 
 // CreateTeam defines the logic of creating the team in the repository.
-func (t TeamUseCase) CreateTeam(ctx context.Context, dto entities.Team) error {
+func (t *TeamUseCase) CreateTeam(ctx context.Context, dto entities.Team) error {
 	const op = "iteam.create-team"
 
 	if err := t.repo.CreateTeam(ctx, dto); err != nil {
@@ -55,4 +55,8 @@ func (t TeamUseCase) CreateTeam(ctx context.Context, dto entities.Team) error {
 	}
 
 	return nil
+}
+
+func (t *TeamUseCase) Close() {
+	t.repo.Close()
 }

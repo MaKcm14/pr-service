@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/MaKcm14/pr-service/internal/entities"
@@ -18,6 +21,7 @@ import (
 // HttpController defines the logic defining the requests handling process.
 type HttpController struct {
 	log     *slog.Logger
+	socket  string
 	server  *echo.Echo
 	useCase services.Interactor
 }
@@ -25,12 +29,58 @@ type HttpController struct {
 func New(log *slog.Logger, socket string, interactor services.Interactor) HttpController {
 	contr := HttpController{
 		log:     log,
+		socket:  socket,
 		server:  echo.New(),
 		useCase: interactor,
 	}
 	contr.configEndpoints()
 
 	return contr
+}
+
+func (h *HttpController) Run() error {
+	errCh := make(chan error)
+	sigCh := make(chan os.Signal, 3)
+
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		if err := h.run(); err != nil {
+			errCh <- err
+		}
+	}()
+
+	var err error
+	select {
+	case <-sigCh:
+		h.close()
+
+	case err = <-errCh:
+		h.close()
+	}
+
+	return err
+}
+
+func (h *HttpController) run() error {
+	const op = "chttp.run-internal"
+
+	h.log.Info("starting the http-server")
+
+	if err := h.server.Start(h.socket); err != nil {
+		retErr := fmt.Errorf("error of the %s: %w: %s", op, ErrStartingServer, err)
+		h.log.Error(retErr.Error())
+		return retErr
+	}
+	return nil
+}
+
+func (h *HttpController) close() {
+	ctx, _ := context.WithTimeout(context.Background(), time.Second*5)
+
+	defer h.useCase.Close()
+	defer h.server.Shutdown(ctx)
+	defer h.log.Info("stop the http-server")
 }
 
 // configEndpoints sets the endpoints for the current kernel server instance.

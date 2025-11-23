@@ -21,3 +21,16 @@ func ConfigSocket(key string) ConfigOpt {
 		return nil
 	}
 }
+
+func ConfigDBSocket(key string) ConfigOpt {
+	return func(conf *Config) error {
+		val := os.Getenv(key)
+
+		if len(val) == 0 {
+			return fmt.Errorf("%w: is empty", ErrSocketConfig)
+		}
+		conf.DBSocket = val
+
+		return nil
+	}
+}
