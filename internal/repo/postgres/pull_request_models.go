@@ -226,3 +226,54 @@ func (p pullRequestRepo) getPullRequestReviewers(
 
 	return res, nil
 }
+
+const selectUserPRs = `
+	SELECT pr.pr_id, pr.pr_name, pr.author_id, pr.status
+	FROM pull_requests AS pr
+	JOIN assigned_reviewers AS ar
+	ON pr.pr_id=ar.pr_id
+	WHERE ar.user_id=$1
+`
+
+func (p PostgreSQLRepo) GetUserPullRequests(ctx context.Context, id entities.UserID) ([]dto.PullRequestDTOShort, error) {
+	const op = "postgres.get-user-pull-requests"
+
+	if _, err := p.GetUser(ctx, id); err != nil {
+		retErr := fmt.Errorf("error of the %s: %w", op, err)
+
+		if errors.Is(err, repo.ErrModelNotFound) {
+			return nil, fmt.Errorf("error of the %s: %w", op, err)
+		}
+		p.conf.log.Warn(retErr.Error())
+
+		return nil, retErr
+	}
+
+	rows, err := p.conf.conn.Query(ctx, selectUserPRs, id)
+	if err != nil {
+		retErr := fmt.Errorf("error of the %s: %w: %s", op, repo.ErrQueryExec, err)
+		p.conf.log.Warn(retErr.Error())
+		return nil, retErr
+	}
+	defer rows.Close()
+
+	res := make([]dto.PullRequestDTOShort, 0, 20)
+	for rows.Next() {
+		pr := dto.PullRequestDTOShort{}
+
+		if err := rows.Scan(&pr.ID, &pr.Name, &pr.AuthorID, &pr.Status); err != nil {
+			retErr := fmt.Errorf("error of the %s: %w: %s", op, repo.ErrResProcessing, err)
+			p.conf.log.Warn(retErr.Error())
+			return nil, retErr
+		}
+		res = append(res, pr)
+	}
+
+	if rows.Err() != nil {
+		retErr := fmt.Errorf("error of the %s: %w: %s", op, repo.ErrResProcessing, err)
+		p.conf.log.Warn(retErr.Error())
+		return nil, retErr
+	}
+
+	return res, nil
+}

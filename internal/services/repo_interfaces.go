@@ -30,5 +30,6 @@ type (
 	PullRequestRepository interface {
 		CreatePullRequest(ctx context.Context, pullRequest dto.PullRequestDTO) error
 		SetPullRequestStatus(ctx context.Context, status entities.PullRequestStatus, pullReq dto.PullRequestDTO) (dto.PullRequestDTO, error)
+		GetUserPullRequests(ctx context.Context, id entities.UserID) ([]dto.PullRequestDTOShort, error)
 	}
 )

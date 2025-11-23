@@ -82,10 +82,38 @@ func (h *HttpController) handlerTeamGet(eCtx echo.Context) error {
 }
 
 // handlerUsersGetReview defines the logic of handling the request for getting the reviewer's PRs.
-func (h *HttpController) handlerUsersGetReview(ctx echo.Context) error {
+func (h *HttpController) handlerUsersGetReview(eCtx echo.Context) error {
 	const op = "chttp.users-get-review"
 
-	return nil
+	id := eCtx.QueryParam("user_id")
+
+	ctx, _ := context.WithTimeout(eCtx.Request().Context(), time.Second*3)
+	res, err := h.useCase.GetUserPullRequests(ctx, entities.UserID(id))
+
+	if err != nil {
+		if errors.Is(err, services.ErrEntityNotFound) {
+			return eCtx.JSON(http.StatusNotFound, ErrResponse{
+				ErrData{
+					Code:    NotFound,
+					Message: ErrRespQueryNotFound.Error(),
+				}})
+		}
+		retErr := fmt.Errorf("error of the %s: %s", op, ErrRespQueryServerError, err)
+		h.log.Warn(retErr.Error())
+		return eCtx.JSON(http.StatusInternalServerError, ErrResponse{
+			ErrData{
+				Code:    ServerErr,
+				Message: ErrRespQueryServerError.Error(),
+			}})
+	}
+
+	return eCtx.JSON(http.StatusOK, struct {
+		ID           entities.UserID           `json:"user_id"`
+		PullRequests []dto.PullRequestDTOShort `json:"pull_requests"`
+	}{
+		ID:           entities.UserID(id),
+		PullRequests: res,
+	})
 }
 
 // handlerTeamAdd defines the logic of handling the request for adding the team.
@@ -239,5 +267,6 @@ func (h *HttpController) handlerPullRequestMerge(eCtx echo.Context) error {
 
 func (h *HttpController) handlerPullRequestReassign(ctx echo.Context) error {
 	const op = "chttp.pull-request-reassign"
+
 	return nil
 }

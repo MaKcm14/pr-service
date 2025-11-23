@@ -98,3 +98,22 @@ func (p PullRequestInteractor) SetPullRequestStatus(
 
 	return res, nil
 }
+
+func (p PullRequestInteractor) GetUserPullRequests(ctx context.Context, id entities.UserID) ([]dto.PullRequestDTOShort, error) {
+	const op = "ipreq.get-user-pull-requests"
+
+	res, err := p.prRepo.GetUserPullRequests(ctx, id)
+
+	if err != nil {
+		retErr := fmt.Errorf("error of the %s: %w: %s", op, services.ErrRepositoryInteraction, err)
+
+		if errors.Is(err, repo.ErrModelNotFound) {
+			return nil, fmt.Errorf("error of the %s: %w: %s", op, services.ErrEntityNotFound, err)
+		}
+		p.log.Warn(retErr.Error())
+
+		return nil, retErr
+	}
+
+	return res, nil
+}
