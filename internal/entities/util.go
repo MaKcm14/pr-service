@@ -16,12 +16,11 @@ func makeReviewerRandGen(col []User, except []UserID) func() (int, error) {
 						break
 					}
 				}
+				buff[idx] = struct{}{}
 
 				if col[idx].IsActive && !flagExcept {
 					return idx, nil
 				}
-
-				buff[idx] = struct{}{}
 			}
 		}
 		return -1, ErrReviewerAssign

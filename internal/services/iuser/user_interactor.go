@@ -23,10 +23,10 @@ func NewUserUseCase(log *slog.Logger, repo services.UserRepository) *UserUseCase
 	}
 }
 
-func (u *UserUseCase) SetUserIsActive(ctx context.Context, dto entities.User) (entities.User, error) {
+func (u *UserUseCase) SetUserIsActive(ctx context.Context, isActive bool, id entities.UserID) (entities.User, error) {
 	const op = "iuser.set-user-is-active"
 
-	user, err := u.repo.SetUserIsActive(ctx, dto)
+	user, err := u.repo.SetUserIsActive(ctx, isActive, id)
 	if err != nil {
 		if errors.Is(err, repo.ErrModelNotFound) {
 			return entities.User{}, fmt.Errorf(

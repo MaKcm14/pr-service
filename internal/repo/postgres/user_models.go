@@ -19,10 +19,10 @@ const updateUser = `
 	WHERE id=$2
 `
 
-func (p *PostgreSQLRepo) SetUserIsActive(ctx context.Context, dto entities.User) (entities.User, error) {
+func (p *PostgreSQLRepo) SetUserIsActive(ctx context.Context, isActive bool, id entities.UserID) (entities.User, error) {
 	const op = "postgres.set-user-is-active"
 
-	tag, err := p.conf.conn.Exec(ctx, updateUser, true, dto.ID)
+	tag, err := p.conf.conn.Exec(ctx, updateUser, isActive, id)
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w: %w", op, repo.ErrQueryExec, err)
 		p.conf.log.Warn(retErr.Error())
@@ -33,7 +33,7 @@ func (p *PostgreSQLRepo) SetUserIsActive(ctx context.Context, dto entities.User)
 		return entities.User{}, repo.ErrModelNotFound
 	}
 
-	user, err := p.GetUser(ctx, dto.ID)
+	user, err := p.GetUser(ctx, id)
 	if err != nil {
 		return entities.User{}, err
 	}

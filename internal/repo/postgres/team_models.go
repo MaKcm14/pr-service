@@ -32,6 +32,8 @@ func (p *PostgreSQLRepo) GetTeam(ctx context.Context, name string) (entities.Tea
 	}
 
 	team := entities.NewTeam()
+	team.Name = name
+
 	members, err := p.teamsRepo.getTeamMembers(ctx, name)
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w", op, err)
@@ -65,16 +67,26 @@ func (p *PostgreSQLRepo) CreateTeam(ctx context.Context, team entities.Team) err
 const insertTeam = `
 	INSERT INTO teams (team_name)
 	VALUES ($1)
+	RETURNING id
 `
 
 // createTeam defines the logic of creating the 'Team' model.
 func (t teamsRepo) createTeam(ctx context.Context, team entities.Team) error {
 	const op = "postgres.create-team"
 
-	_, err := t.conf.conn.Exec(ctx, insertTeam, team.Name)
+	rows, err := t.conf.conn.Query(ctx, insertTeam, team.Name)
 
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w: %w", op, repo.ErrQueryExec, err)
+		t.conf.log.Warn(retErr.Error())
+		return retErr
+	}
+	defer rows.Close()
+
+	if rows.Next() {
+		rows.Scan(&team.ID)
+	} else if rows.Err() != nil {
+		retErr := fmt.Errorf("error of the %s: %w: %w", op, repo.ErrResProcessing, err)
 		t.conf.log.Warn(retErr.Error())
 		return retErr
 	}
@@ -86,8 +98,8 @@ func (t teamsRepo) createTeam(ctx context.Context, team entities.Team) error {
 }
 
 const insertMembers = `
-INSERT INTO users (id, username, is_active)
-`
+INSERT INTO users (id, username, is_active, team_id)
+VALUES `
 
 // addMembersList defines the logic of adding the members list for the current team.
 func (t teamsRepo) addMembersList(ctx context.Context, team entities.Team) error {
@@ -99,8 +111,13 @@ func (t teamsRepo) addMembersList(ctx context.Context, team entities.Team) error
 
 	query := bytes.Buffer{}
 	query.WriteString(insertMembers)
-	for _, user := range team.Members {
-		query.WriteString(fmt.Sprintf("(%s, %s, %v)\n", user.ID, user.Name, user.IsActive))
+	for idx, user := range team.Members {
+		query.WriteString(fmt.Sprintf("('%s', '%s', %s, %d)", string(user.ID), user.Name,
+			getSqlViewBool(user.IsActive), team.ID))
+
+		if idx != len(team.Members)-1 {
+			query.WriteString(",\n")
+		}
 	}
 
 	_, err := t.conf.conn.Exec(ctx, query.String())
@@ -119,7 +136,7 @@ const selectMembers = `
 	FROM users 
 		JOIN teams 
 		ON users.team_id=teams.id
-	WHERE name=$1
+	WHERE teams.team_name=$1
 `
 
 // getTeamMembers defines the logic of getting the members for the current team.
@@ -135,7 +152,7 @@ func (t teamsRepo) getTeamMembers(ctx context.Context, name string) ([]entities.
 	}
 	defer rows.Close()
 
-	res := make([]entities.User, 250)
+	res := make([]entities.User, 0, 250)
 	for rows.Next() {
 		user := entities.User{}
 		rows.Scan(&user.ID, &user.Name, &user.IsActive)
@@ -153,7 +170,7 @@ func (t teamsRepo) getTeamMembers(ctx context.Context, name string) ([]entities.
 const selectTeam = `
 	SELECT id, team_name
 	FROM teams
-	WHERE name=$1
+	WHERE team_name=$1
 `
 
 // isTeamExists defines the logic of checking whether the current team exists.

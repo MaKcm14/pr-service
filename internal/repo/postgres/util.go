@@ -16,17 +16,17 @@ type postgresConfig struct {
 	conn *pgxpool.Pool
 }
 
-func newPostgresConfig(log *slog.Logger, socket string) (*postgresConfig, error) {
+func newPostgresConfig(log *slog.Logger, dsn string) (*postgresConfig, error) {
 	const op = "postgres.new-config"
 
-	conn, err := pgxpool.New(context.Background(), socket)
+	ctx, _ := context.WithTimeout(context.Background(), time.Second*5)
+	conn, err := pgxpool.New(ctx, dsn)
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w: %w", op, repo.ErrConnToRepository, err)
 		log.Error(retErr.Error())
 		return nil, retErr
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*5)
 	if err := conn.Ping(ctx); err != nil {
 		retErr := fmt.Errorf("error of the %s: %w: %w", op, repo.ErrConnToRepository, err)
 		log.Error(retErr.Error())
@@ -37,6 +37,13 @@ func newPostgresConfig(log *slog.Logger, socket string) (*postgresConfig, error)
 		log:  log,
 		conn: conn,
 	}, nil
+}
+
+func getSqlViewBool(val bool) string {
+	if val {
+		return "TRUE"
+	}
+	return "FALSE"
 }
 
 func (p postgresConfig) close() {

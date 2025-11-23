@@ -1,0 +1,11 @@
+services:
+    postgres:
+      image: 'postgres:latest'
+
+      container_name: postgres
+
+      restart: always
+
+      environment:
+       - POSTGRES_PASSWORD=pr_service
+       - POSTGRES_DB=pr_service_db

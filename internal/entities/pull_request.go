@@ -20,8 +20,8 @@ type PullRequest struct {
 	ID        PullRequestID
 	Name      string
 	Status    PullRequestStatus
-	CreatedAt time.Time
-	MergedAt  time.Time
+	CreatedAt *time.Time
+	MergedAt  *time.Time
 	Author    User
 	Reviewers map[UserID]User
 }
@@ -33,11 +33,13 @@ func NewPullRequest() PullRequest {
 }
 
 func (p *PullRequest) SetCreatedAtNow() {
-	p.CreatedAt = time.Now()
+	p.CreatedAt = new(time.Time)
+	(*p.CreatedAt) = time.Now()
 }
 
 func (p *PullRequest) SetMergedAtNow() {
-	p.MergedAt = time.Now()
+	p.MergedAt = new(time.Time)
+	(*p.MergedAt) = time.Now()
 }
 
 func (p *PullRequest) SetReviewers(team Team) error {
@@ -76,7 +78,7 @@ func (p *PullRequest) ReassignReviewer(id UserID, team Team) (UserID, error) {
 	}
 
 	p.Reviewers[team.Members[pos].ID] = team.Members[pos]
-	return "", nil
+	return team.Members[pos].ID, nil
 }
 
 func (p *PullRequest) CheckUserIsReviewer(id UserID) bool {

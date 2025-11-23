@@ -58,6 +58,9 @@ func (p *PullRequestUseCase) CreatePullRequest(ctx context.Context, pullRequest 
 	}
 	pullReq := dto.PullRequestDTOToPullRequest(pullRequest)
 	pullReq.SetReviewers(team)
+	pullReq.SetCreatedAtNow()
+
+	pullRequest = dto.PullRequestToPullRequestDTO(pullReq)
 
 	if err := p.prRepo.CreatePullRequest(ctx, pullRequest); err != nil {
 		retErr := fmt.Errorf("error of the %s: %w: %s", op, services.ErrRepositoryInteraction, err)
@@ -82,6 +85,12 @@ func (p *PullRequestUseCase) SetPullRequestStatus(
 	pullReq dto.PullRequestDTO,
 ) (dto.PullRequestDTO, error) {
 	const op = "ipreq.set-pull-request-status"
+
+	if status == entities.Merged {
+		pullReqEnt := dto.PullRequestDTOToPullRequest(pullReq)
+		pullReqEnt.SetMergedAtNow()
+		pullReq = dto.PullRequestToPullRequestDTO(pullReqEnt)
+	}
 
 	res, err := p.prRepo.SetPullRequestStatus(ctx, status, pullReq)
 	if err != nil {
@@ -121,7 +130,7 @@ func (p *PullRequestUseCase) GetUserPullRequests(ctx context.Context, id entitie
 func (p *PullRequestUseCase) ReassignUser(ctx context.Context, reassignData dto.PullRequestChangeReviewerDTO) (dto.PullRequestDTO, entities.UserID, error) {
 	const op = "ipreq.reassign-user"
 
-	user, err := p.userRepo.GetUser(ctx, reassignData.OldUserID)
+	user, err := p.userRepo.GetUser(ctx, reassignData.OldReviewerID)
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w: %s", op, services.ErrRepositoryInteraction, err)
 
@@ -170,7 +179,10 @@ func (p *PullRequestUseCase) ReassignUser(ctx context.Context, reassignData dto.
 		}
 	}
 
-	if err := p.prRepo.ChangeReviewer(ctx, reassignData.OldUserID, id, pullReq); err != nil {
+	// TODO: delete
+	fmt.Println("check_point", id, reassignData.OldReviewerID)
+
+	if err := p.prRepo.ChangeReviewer(ctx, reassignData.OldReviewerID, id, pullReq); err != nil {
 		retErr := fmt.Errorf("error of the %s: %w: %s", op, services.ErrRepositoryInteraction, err)
 		p.log.Warn(retErr.Error())
 		return dto.PullRequestDTO{}, "", retErr

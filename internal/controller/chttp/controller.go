@@ -101,11 +101,8 @@ func (h *HttpController) handlerTeamGet(eCtx echo.Context) error {
 
 	res, err := validateTeamName(eCtx)
 	if err != nil {
-		return eCtx.JSON(http.StatusBadRequest, ErrResponse{
-			ErrData{
-				Code:    NoCandidate,
-				Message: ErrRespQueryEmptyParam.Error(),
-			}})
+		return eCtx.JSON(http.StatusBadRequest,
+			NewErrResponse(RequestDataErr, ErrRespQueryEmptyParam.Error()))
 	}
 
 	ctx, _ := context.WithTimeout(eCtx.Request().Context(), time.Second*3)
@@ -113,19 +110,13 @@ func (h *HttpController) handlerTeamGet(eCtx echo.Context) error {
 
 	if err != nil {
 		if errors.Is(err, services.ErrEntityNotFound) {
-			return eCtx.JSON(http.StatusNotFound, ErrResponse{
-				ErrData{
-					Code:    NotFound,
-					Message: ErrRespQueryNotFound.Error(),
-				}})
+			return eCtx.JSON(http.StatusNotFound,
+				NewErrResponse(NotFound, ErrRespQueryNotFound.Error()))
 		}
 		h.log.Warn("error of the %s: %s", op, err)
 
-		return eCtx.JSON(http.StatusInternalServerError, ErrResponse{
-			ErrData{
-				Code:    ServerErr,
-				Message: ErrRespQueryServerError.Error(),
-			}})
+		return eCtx.JSON(http.StatusInternalServerError,
+			NewErrResponse(ServerErr, ErrRespQueryServerError.Error()))
 	}
 
 	return eCtx.JSON(http.StatusOK, dto)
@@ -135,33 +126,31 @@ func (h *HttpController) handlerTeamGet(eCtx echo.Context) error {
 func (h *HttpController) handlerUsersGetReview(eCtx echo.Context) error {
 	const op = "chttp.users-get-review"
 
-	id := eCtx.QueryParam("user_id")
+	id, err := validateUserID(eCtx)
+	if err != nil {
+		return eCtx.JSON(http.StatusBadRequest,
+			NewErrResponse(RequestDataErr, ErrRespQueryEmptyParam.Error()))
+	}
 
 	ctx, _ := context.WithTimeout(eCtx.Request().Context(), time.Second*3)
-	res, err := h.useCase.GetUserPullRequests(ctx, entities.UserID(id))
+	res, err := h.useCase.GetUserPullRequests(ctx, entities.UserID(id.(string)))
 
 	if err != nil {
 		if errors.Is(err, services.ErrEntityNotFound) {
-			return eCtx.JSON(http.StatusNotFound, ErrResponse{
-				ErrData{
-					Code:    NotFound,
-					Message: ErrRespQueryNotFound.Error(),
-				}})
+			return eCtx.JSON(http.StatusNotFound,
+				NewErrResponse(NotFound, ErrRespQueryNotFound.Error()))
 		}
-		retErr := fmt.Errorf("error of the %s: %s", op, ErrRespQueryServerError, err)
+		retErr := fmt.Errorf("error of the %s: %s: %s", op, ErrRespQueryServerError, err)
 		h.log.Warn(retErr.Error())
-		return eCtx.JSON(http.StatusInternalServerError, ErrResponse{
-			ErrData{
-				Code:    ServerErr,
-				Message: ErrRespQueryServerError.Error(),
-			}})
+		return eCtx.JSON(http.StatusInternalServerError,
+			NewErrResponse(ServerErr, ErrRespQueryServerError.Error()))
 	}
 
 	return eCtx.JSON(http.StatusOK, struct {
 		ID           entities.UserID           `json:"user_id"`
 		PullRequests []dto.PullRequestDTOShort `json:"pull_requests"`
 	}{
-		ID:           entities.UserID(id),
+		ID:           entities.UserID(id.(string)),
 		PullRequests: res,
 	})
 }
@@ -173,29 +162,20 @@ func (h *HttpController) handlerTeamAdd(eCtx echo.Context) error {
 	team := entities.NewTeam()
 
 	if err := eCtx.Bind(&team); err != nil {
-		return eCtx.JSON(http.StatusBadRequest, ErrResponse{
-			ErrData{
-				Code:    NoCandidate,
-				Message: ErrRespQueryWrongRequestData.Error(),
-			}})
+		return eCtx.JSON(http.StatusBadRequest,
+			NewErrResponse(RequestDataErr, ErrRespQueryWrongRequestData.Error()))
 	}
 
 	ctx, _ := context.WithTimeout(eCtx.Request().Context(), time.Second*3)
 
 	if err := h.useCase.CreateTeam(ctx, team); err != nil {
 		if errors.Is(err, repo.ErrCreateMultipleUniqueModels) {
-			return eCtx.JSON(http.StatusBadRequest, ErrResponse{
-				ErrData{
-					Code:    TeamExists,
-					Message: ErrRespQueryAlreadyExists.Error(),
-				}})
+			return eCtx.JSON(http.StatusBadRequest,
+				NewErrResponse(TeamExists, ErrRespQueryAlreadyExists.Error()))
 		}
 		h.log.Warn(fmt.Sprintf("error of the %s: %s", op, err))
-		return eCtx.JSON(http.StatusInternalServerError, ErrResponse{
-			ErrData{
-				Code:    ServerErr,
-				Message: ErrRespQueryServerError.Error(),
-			}})
+		return eCtx.JSON(http.StatusInternalServerError,
+			NewErrResponse(ServerErr, ErrRespQueryServerError.Error()))
 	}
 
 	return eCtx.JSON(http.StatusCreated, dto.TeamToTeamDTO(team))
@@ -207,31 +187,23 @@ func (h *HttpController) handlerUserSetIsActive(eCtx echo.Context) error {
 
 	dto := entities.User{}
 	if err := eCtx.Bind(&dto); err != nil {
-		return eCtx.JSON(http.StatusBadRequest, ErrResponse{
-			ErrData{
-				Code:    NoCandidate,
-				Message: ErrRespQueryWrongRequestData.Error(),
-			}})
+		return eCtx.JSON(http.StatusBadRequest,
+			NewErrResponse(RequestDataErr, ErrRespQueryWrongRequestData.Error()))
 	}
 
 	ctx, _ := context.WithTimeout(eCtx.Request().Context(), time.Second*3)
 
-	user, err := h.useCase.SetUserIsActive(ctx, dto)
+	user, err := h.useCase.SetUserIsActive(ctx, dto.IsActive, dto.ID)
 	if err != nil {
 		if errors.Is(err, services.ErrEntityNotFound) {
-			return eCtx.JSON(http.StatusNotFound, ErrResponse{
-				ErrData{
-					Code:    NotFound,
-					Message: ErrRespQueryNotFound.Error(),
-				}})
+			return eCtx.JSON(http.StatusNotFound,
+				NewErrResponse(NotFound, ErrRespQueryNotFound.Error()))
 		}
-		retErr := fmt.Errorf("error of the %s: %s", op, ErrRespQueryServerError, err)
+		retErr := fmt.Errorf("error of the %s: %s: %s", op, ErrRespQueryServerError, err)
 		h.log.Warn(retErr.Error())
-		return eCtx.JSON(http.StatusInternalServerError, ErrResponse{
-			ErrData{
-				Code:    ServerErr,
-				Message: ErrRespQueryServerError.Error(),
-			}})
+
+		return eCtx.JSON(http.StatusInternalServerError,
+			NewErrResponse(ServerErr, ErrRespQueryServerError.Error()))
 	}
 
 	return eCtx.JSON(http.StatusOK, user)
@@ -243,35 +215,25 @@ func (h *HttpController) handlerPullRequestCreate(eCtx echo.Context) error {
 
 	pullReq := dto.NewPullRequestDTO()
 	if err := eCtx.Bind(&pullReq); err != nil {
-		return eCtx.JSON(http.StatusBadRequest, ErrResponse{
-			ErrData{
-				Code:    RequestDataErr,
-				Message: ErrRespQueryWrongRequestData.Error(),
-			},
-		})
+		return eCtx.JSON(http.StatusBadRequest,
+			NewErrResponse(RequestDataErr, ErrRespQueryWrongRequestData.Error()))
 	}
+	pullReq.Status = entities.Open
 
 	ctx, _ := context.WithTimeout(eCtx.Request().Context(), time.Second*3)
 	if err := h.useCase.CreatePullRequest(ctx, pullReq); err != nil {
 		if errors.Is(err, services.ErrEntityNotFound) {
-			return eCtx.JSON(http.StatusNotFound, ErrResponse{
-				ErrData{
-					Code:    NotFound,
-					Message: ErrRespQueryNotFound.Error(),
-				}})
+			return eCtx.JSON(http.StatusNotFound,
+				NewErrResponse(NotFound, ErrRespQueryNotFound.Error()))
+
 		} else if errors.Is(err, services.ErrEntityAlreadyExists) {
-			eCtx.JSON(http.StatusNotFound, ErrResponse{
-				ErrData{
-					Code:    PrExists,
-					Message: ErrRespQueryAlreadyExists.Error(),
-				}})
+			return eCtx.JSON(http.StatusConflict,
+				NewErrResponse(PrExists, ErrRespQueryAlreadyExists.Error()))
 		}
 		h.log.Warn(fmt.Sprintf("error of the %s: %s", op, err))
-		return eCtx.JSON(http.StatusInternalServerError, ErrResponse{
-			ErrData{
-				Code:    ServerErr,
-				Message: ErrRespQueryServerError.Error(),
-			}})
+
+		return eCtx.JSON(http.StatusInternalServerError,
+			NewErrResponse(ServerErr, ErrRespQueryServerError.Error()))
 	}
 
 	return eCtx.JSON(http.StatusCreated, dto.MakePullRequestDTOShort(pullReq))
@@ -283,33 +245,21 @@ func (h *HttpController) handlerPullRequestMerge(eCtx echo.Context) error {
 
 	pullReq := dto.NewPullRequestDTO()
 	if err := eCtx.Bind(&pullReq); err != nil {
-		return eCtx.JSON(http.StatusBadRequest, ErrResponse{
-			ErrData{
-				Code:    RequestDataErr,
-				Message: ErrRespQueryWrongRequestData.Error(),
-			},
-		})
+		return eCtx.JSON(http.StatusBadRequest,
+			NewErrResponse(RequestDataErr, ErrRespQueryWrongRequestData.Error()))
 	}
 
 	ctx, _ := context.WithTimeout(eCtx.Request().Context(), time.Second*3)
 	res, err := h.useCase.SetPullRequestStatus(ctx, entities.Merged, pullReq)
 	if err != nil {
 		if errors.Is(err, services.ErrEntityNotFound) {
-			return eCtx.JSON(http.StatusNotFound, ErrResponse{
-				ErrData{
-					Code:    NotFound,
-					Message: ErrRespQueryNotFound.Error(),
-				},
-			})
+			return eCtx.JSON(http.StatusNotFound,
+				NewErrResponse(NotFound, ErrRespQueryNotFound.Error()))
 		}
 		h.log.Warn(fmt.Sprintf("error of the %s: %s", op, err))
 
-		return eCtx.JSON(http.StatusInternalServerError, ErrResponse{
-			ErrData{
-				Code:    ServerErr,
-				Message: ErrRespQueryServerError.Error(),
-			},
-		})
+		return eCtx.JSON(http.StatusInternalServerError,
+			NewErrResponse(ServerErr, ErrRespQueryServerError.Error()))
 	}
 
 	return eCtx.JSON(http.StatusOK, res)
@@ -322,12 +272,8 @@ func (h *HttpController) handlerPullRequestReassign(eCtx echo.Context) error {
 
 	data := dto.PullRequestChangeReviewerDTO{}
 	if err := eCtx.Bind(&data); err != nil {
-		return eCtx.JSON(http.StatusBadRequest, ErrResponse{
-			ErrData{
-				Code:    RequestDataErr,
-				Message: ErrRespQueryWrongRequestData.Error(),
-			},
-		})
+		return eCtx.JSON(http.StatusBadRequest,
+			NewErrResponse(RequestDataErr, ErrRespQueryWrongRequestData.Error()))
 	}
 
 	ctx, _ := context.WithTimeout(eCtx.Request().Context(), time.Second*3)
@@ -336,42 +282,25 @@ func (h *HttpController) handlerPullRequestReassign(eCtx echo.Context) error {
 		retErr := fmt.Errorf("error of the %s: %s", op, err)
 
 		if errors.Is(err, services.ErrEntityNotFound) {
-			return eCtx.JSON(http.StatusNotFound, ErrResponse{
-				ErrData{
-					Code:    NotFound,
-					Message: ErrRespQueryServerError.Error(),
-				},
-			})
+			return eCtx.JSON(http.StatusNotFound,
+				NewErrResponse(NotFound, ErrRespQueryNotFound.Error()))
+
 		} else if errors.Is(err, services.ErrDomainRulesWithROState) {
-			return eCtx.JSON(http.StatusConflict, ErrResponse{
-				ErrData{
-					Code:    PrMerged,
-					Message: ErrRespQueryOpIsRestrict.Error(),
-				},
-			})
+			return eCtx.JSON(http.StatusConflict,
+				NewErrResponse(PrMerged, ErrRespQueryOpIsRestrict.Error()))
+
 		} else if errors.Is(err, services.ErrDomainRulesNoCandidate) {
-			return eCtx.JSON(http.StatusConflict, ErrResponse{
-				ErrData{
-					Code:    NoCandidate,
-					Message: ErrRespQueryNoCandidate.Error(),
-				},
-			})
+			return eCtx.JSON(http.StatusConflict,
+				NewErrResponse(NoCandidate, ErrRespQueryNoCandidate.Error()))
+
 		} else if errors.Is(err, services.ErrWrongCandidate) {
-			return eCtx.JSON(http.StatusConflict, ErrResponse{
-				ErrData{
-					Code:    NotAssigned,
-					Message: ErrRespQueryWrongCandidate.Error(),
-				},
-			})
+			return eCtx.JSON(http.StatusConflict,
+				NewErrResponse(NotAssigned, ErrRespQueryWrongCandidate.Error()))
 		}
 		h.log.Warn(retErr.Error())
 
-		return eCtx.JSON(http.StatusInternalServerError, ErrResponse{
-			ErrData{
-				Code:    ServerErr,
-				Message: ErrRespQueryServerError.Error(),
-			},
-		})
+		return eCtx.JSON(http.StatusInternalServerError,
+			NewErrResponse(ServerErr, ErrRespQueryServerError.Error()))
 	}
 
 	return eCtx.JSON(http.StatusOK, struct {

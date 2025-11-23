@@ -23,7 +23,7 @@ type Service struct {
 func NewService() Service {
 	date := strings.Split(time.Now().String()[:19], " ")
 
-	logFile, err := os.Create(fmt.Sprintf("../../logs/pull-request-service-main-logs_%s___%s.txt",
+	logFile, err := os.Create(fmt.Sprintf("/project/data/logs/pull-request-service-main-logs_%s___%s.txt",
 		date[0], strings.Join(strings.Split(date[1], ":"), "-")))
 
 	if err != nil {
@@ -35,7 +35,7 @@ func NewService() Service {
 	config := cfg.Config{}
 	if err := config.Configure(log,
 		cfg.ConfigSocket("SERVICE_SOCKET"),
-		cfg.ConfigDBSocket("DB_SOCKET")); err != nil {
+		cfg.ConfigDSN("DSN")); err != nil {
 		logFile.Close()
 		panic(fmt.Sprintf("error while configuring the service: %s", err))
 	}
@@ -43,7 +43,7 @@ func NewService() Service {
 	contr, err := configureLayers(log, config)
 	if err != nil {
 		logFile.Close()
-		panic(fmt.Sprintf("error while configuring the service: %s", err))
+		panic(err.Error())
 	}
 
 	return Service{
@@ -56,7 +56,7 @@ func NewService() Service {
 func configureLayers(log *slog.Logger, config cfg.Config) (chttp.HttpController, error) {
 	log.Info("configuring the DB")
 
-	repo, err := postgres.New(log, config.DBSocket)
+	repo, err := postgres.New(log, config.DSN)
 	if err != nil {
 		return chttp.HttpController{}, fmt.Errorf("error while configuring the service: %s", err)
 	}

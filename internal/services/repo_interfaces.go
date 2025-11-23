@@ -20,7 +20,7 @@ type (
 	UserRepository interface {
 		Closer
 
-		SetUserIsActive(ctx context.Context, dto entities.User) (entities.User, error)
+		SetUserIsActive(ctx context.Context, isActive bool, id entities.UserID) (entities.User, error)
 		GetUser(ctx context.Context, id entities.UserID) (entities.User, error)
 	}
 

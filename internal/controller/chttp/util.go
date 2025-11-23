@@ -24,3 +24,12 @@ type ErrData struct {
 type ErrResponse struct {
 	Data ErrData `json:"error"`
 }
+
+func NewErrResponse(code ErrCode, Message string) ErrResponse {
+	return ErrResponse{
+		ErrData{
+			Code:    code,
+			Message: Message,
+		},
+	}
+}

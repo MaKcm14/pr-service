@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -47,6 +48,41 @@ func (p *PostgreSQLRepo) CreatePullRequest(ctx context.Context, pullRequest dto.
 		p.conf.log.Warn(retErr.Error())
 		return retErr
 	}
+
+	if err := p.prRepo.setPullRequestReviewers(ctx, pullRequest); err != nil {
+		retErr := fmt.Errorf("error of the %s: %w", op, err)
+		p.conf.log.Warn(retErr.Error())
+		return retErr
+	}
+
+	return nil
+}
+
+const addPullRequestMembers = `
+	INSERT INTO assigned_reviewers (pr_id, user_id)
+	VALUES `
+
+func (p pullRequestRepo) setPullRequestReviewers(ctx context.Context, pullReq dto.PullRequestDTO) error {
+	const op = "postgres.set-pull-request-reviewers"
+
+	query := bytes.Buffer{}
+	query.WriteString(addPullRequestMembers)
+
+	for idx, id := range pullReq.Reviewers {
+		query.WriteString(fmt.Sprintf("('%s', '%s')", pullReq.ID, id))
+
+		if idx != len(pullReq.Reviewers)-1 {
+			query.WriteString(",\n")
+		}
+	}
+
+	_, err := p.conf.conn.Exec(ctx, query.String())
+	if err != nil {
+		retErr := fmt.Errorf("error of the %s: %w, %s", op, repo.ErrQueryExec, err)
+		p.conf.log.Warn(retErr.Error())
+		return retErr
+	}
+
 	return nil
 }
 
@@ -105,8 +141,8 @@ func (p pullRequestRepo) isPullRequestExists(ctx context.Context, id entities.Pu
 
 const updatePRStatus = `
 	UPDATE pull_requests
-	SET status=$1
-	WHERE id=$2
+	SET status=$1, merged_at=$2
+	WHERE id=$3
 `
 
 // SetPullRequestStatus defines the logic of changing the PR's status.
@@ -128,7 +164,7 @@ func (p *PostgreSQLRepo) SetPullRequestStatus(
 		return dto.PullRequestDTO{}, retErr
 	}
 
-	_, err := p.conf.conn.Exec(ctx, updatePRStatus, status, pullReq.Status)
+	_, err := p.conf.conn.Exec(ctx, updatePRStatus, status, pullReq.MergedAt, pullReq.ID)
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w: %s", op, repo.ErrQueryExec, err)
 		p.conf.log.Warn(retErr.Error())
@@ -217,7 +253,7 @@ func (p pullRequestRepo) getPullRequest(
 }
 
 const selectPRReviewers = `
-	SELECT assigned_reviewers.id
+	SELECT assigned_reviewers.user_id
 	FROM pull_requests 
 		JOIN assigned_reviewers 
 		ON pull_requests.id=assigned_reviewers.pr_id
@@ -255,11 +291,11 @@ func (p pullRequestRepo) getPullRequestReviewers(
 }
 
 const selectUserPRs = `
-	SELECT pr.pr_id, pr.pr_name, pr.author_id, pr.status
+	SELECT pr.id, pr.pr_name, pr.author_id, pr.status
 	FROM pull_requests AS pr
 	JOIN assigned_reviewers AS ar
-	ON pr.pr_id=ar.pr_id
-	WHERE ar.user_id=$1
+	ON pr.id=ar.pr_id
+	WHERE pr.author_id=$1
 `
 
 func (p *PostgreSQLRepo) GetUserPullRequests(ctx context.Context, id entities.UserID) ([]dto.PullRequestDTOShort, error) {
@@ -308,13 +344,13 @@ func (p *PostgreSQLRepo) GetUserPullRequests(ctx context.Context, id entities.Us
 const changeReviewer = `
 	UPDATE assigned_reviewers
 	SET user_id=$1
-	WHERE pr_id=$1 AND user_id=$2
+	WHERE pr_id=$2 AND user_id=$3
 `
 
 func (p *PostgreSQLRepo) ChangeReviewer(ctx context.Context, lastID entities.UserID, newID entities.UserID, pullReq dto.PullRequestDTO) error {
-	const op = "postgres.change-reviewers-list"
+	const op = "postgres.change-reviewers"
 
-	tag, err := p.conf.conn.Exec(ctx, changeReviewer, lastID, pullReq.ID, newID)
+	tag, err := p.conf.conn.Exec(ctx, changeReviewer, newID, pullReq.ID, lastID)
 
 	if err != nil {
 		retErr := fmt.Errorf("error of the %s: %w: %s", op, repo.ErrQueryExec, err)

@@ -22,14 +22,14 @@ func ConfigSocket(key string) ConfigOpt {
 	}
 }
 
-func ConfigDBSocket(key string) ConfigOpt {
+func ConfigDSN(key string) ConfigOpt {
 	return func(conf *Config) error {
 		val := os.Getenv(key)
 
 		if len(val) == 0 {
-			return fmt.Errorf("%w: is empty", ErrSocketConfig)
+			return fmt.Errorf("%w: is empty", ErrDsnConfig)
 		}
-		conf.DBSocket = val
+		conf.DSN = val
 
 		return nil
 	}

@@ -18,9 +18,11 @@ type PostgreSQLRepo struct {
 
 func New(log *slog.Logger, socket string) (*PostgreSQLRepo, error) {
 	conf, err := newPostgresConfig(log, socket)
+
 	if err != nil {
-		return &PostgreSQLRepo{}, err
+		return nil, err
 	}
+
 	return &PostgreSQLRepo{
 		conf: conf,
 		teamsRepo: teamsRepo{

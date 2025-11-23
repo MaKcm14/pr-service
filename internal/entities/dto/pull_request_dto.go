@@ -10,8 +10,8 @@ type PullRequestDTO struct {
 	ID        entities.PullRequestID     `json:"pull_request_id"`
 	Name      string                     `json:"pull_request_name"`
 	Status    entities.PullRequestStatus `json:"status"`
-	CreatedAt time.Time                  `json:"created_at"`
-	MergedAt  time.Time                  `json:"merged_at"`
+	CreatedAt *time.Time                 `json:"created_at"`
+	MergedAt  *time.Time                 `json:"merged_at"`
 	AuthorID  entities.UserID            `json:"author_id"`
 	Reviewers []entities.UserID          `json:"assigned_reviewers"`
 }
@@ -22,18 +22,26 @@ func NewPullRequestDTO() PullRequestDTO {
 	}
 }
 
-func PullRequestToPullRequestDTO(pullRequest entities.PullRequest) PullRequestDTO {
+func PullRequestToPullRequestDTO(pullReq entities.PullRequest) PullRequestDTO {
 	dto := PullRequestDTO{
-		ID:        pullRequest.ID,
-		Name:      pullRequest.Name,
-		Status:    pullRequest.Status,
-		CreatedAt: pullRequest.CreatedAt,
-		MergedAt:  pullRequest.MergedAt,
-		AuthorID:  pullRequest.Author.ID,
-		Reviewers: make([]entities.UserID, 0, len(pullRequest.Reviewers)),
+		ID:        pullReq.ID,
+		Name:      pullReq.Name,
+		Status:    pullReq.Status,
+		AuthorID:  pullReq.Author.ID,
+		Reviewers: make([]entities.UserID, 0, len(pullReq.Reviewers)),
 	}
 
-	for _, user := range pullRequest.Reviewers {
+	if pullReq.CreatedAt != nil {
+		dto.CreatedAt = new(time.Time)
+		(*dto.CreatedAt) = (*pullReq.CreatedAt)
+	}
+
+	if pullReq.MergedAt != nil {
+		dto.MergedAt = new(time.Time)
+		(*dto.MergedAt) = (*pullReq.MergedAt)
+	}
+
+	for _, user := range pullReq.Reviewers {
 		dto.Reviewers = append(dto.Reviewers, user.ID)
 	}
 	return dto
@@ -66,15 +74,22 @@ func MakePullRequestDTOShort(pullRequest PullRequestDTO) PullRequestDTOShort {
 
 func PullRequestDTOToPullRequest(pullReq PullRequestDTO) entities.PullRequest {
 	obj := entities.PullRequest{
-		ID:        pullReq.ID,
-		Name:      pullReq.Name,
-		Status:    pullReq.Status,
-		CreatedAt: pullReq.CreatedAt,
-		MergedAt:  pullReq.MergedAt,
+		ID:     pullReq.ID,
+		Name:   pullReq.Name,
+		Status: pullReq.Status,
 		Author: entities.User{
 			ID: pullReq.AuthorID,
 		},
 		Reviewers: make(map[entities.UserID]entities.User, len(pullReq.Reviewers)),
+	}
+	if pullReq.CreatedAt != nil {
+		obj.CreatedAt = new(time.Time)
+		(*obj.CreatedAt) = (*pullReq.CreatedAt)
+	}
+
+	if pullReq.MergedAt != nil {
+		obj.MergedAt = new(time.Time)
+		(*obj.MergedAt) = (*pullReq.MergedAt)
 	}
 
 	for _, userID := range pullReq.Reviewers {
@@ -87,6 +102,6 @@ func PullRequestDTOToPullRequest(pullReq PullRequestDTO) entities.PullRequest {
 }
 
 type PullRequestChangeReviewerDTO struct {
-	ID        entities.PullRequestID `json:"pull_request_id"`
-	OldUserID entities.UserID        `json:"old_user_id"`
+	ID            entities.PullRequestID `json:"pull_request_id"`
+	OldReviewerID entities.UserID        `json:"old_reviewer_id"`
 }
